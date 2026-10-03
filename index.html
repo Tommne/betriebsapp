@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.15</title>
+<title>BetriebsApp – Version 1.0.16</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.15</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.16</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -893,12 +893,49 @@ function fieldDetail(id){
  <h3>5-Jahres-Historie</h3><table><tr><th>Jahr</th><th>Kultur</th><th>Ertrag</th><th>Notiz</th></tr>${f.history.slice().sort((a,b)=>b.year-a.year).map(h=>`<tr><td>${h.year}</td><td>${h.crop}</td><td>${h.yield||'–'}</td><td>${h.note||'–'}</td></tr>`).join('')}</table>
  <h3>Arbeitsgänge</h3>${works.length?works.map(w=>`<div class="note rowclick" onclick="workDetail('${w.id}')" style="margin:6px 0">${w.date} · <b>${w.type}</b>${w.note?' · '+w.note:''}</div>`).join(''):'<div class="note">Noch keine Arbeitsgänge.</div>'}
  ${(trial.length||covers.length)?`<h3>Feldinfo</h3>${trial.map(t=>`<div class="note">Sortenversuch: ${t.crop} · ${t.variety} · ${t.area} ha</div>`).join('')}${covers.map(c=>`<div class="note">Begrünung: ${c.mix} · ${c.rate} kg/ha</div>`).join('')}`:''}
- <div class="line"></div>${f.source?.type==='INVEKOS'?`<div class="note"><b>Importquelle:</b> INVEKOS ${f.source.year||''}<br><span class="small">Nutzung beim Import: ${f.source.usage||'–'} · GEO-ID: ${f.source.geoId||'–'}</span></div><br>`:''}<button class="secondary" onclick="editField('${id}')">Feld bearbeiten</button> ${f.geometry?`<button class="secondary" onclick="closeModal();showPage('map');setTimeout(()=>zoomToField('${id}'),180)">Auf Karte zeigen</button>`:''} <button class="dangerbtn" onclick="deleteField('${id}')">Feld löschen</button>`);
+ <div class="line"></div>${f.source?.type==='INVEKOS'?`<div class="note"><b>Importquelle:</b> INVEKOS ${f.source.year||''}<br><span class="small">Nutzung beim Import: ${f.source.usage||'–'} · GEO-ID: ${f.source.geoId||'–'}</span></div><br>`:''}<button class="secondary" onclick="editField('${id}')">Feld bearbeiten</button> <button class="secondary" onclick="splitField('${id}')">Feld teilen</button> ${f.geometry?`<button class="secondary" onclick="closeModal();showPage('map');setTimeout(()=>zoomToField('${id}'),180)">Auf Karte zeigen</button>`:''} <button class="dangerbtn" onclick="deleteField('${id}')">Feld löschen</button>`);
 }
 function addField(){openModal('Feld anlegen',`<div class="form3"><div><label>Name</label><input id="nfName"></div><div><label>Fläche ha</label><input id="nfArea" type="number" step=".01" min="0"><div class="small">Kann vorerst leer bleiben; der Eintrag wird dann rot markiert.</div></div><div><label>Flächenart</label><select id="nfLandType"><option value="acker">Acker</option><option value="dauerwiese">Dauerwiese</option></select></div></div><label>Aktuelle Kultur / Nutzung</label><input id="nfCrop"><br><button class="primary" onclick="saveNewField()">Speichern</button>`)}
 function saveNewField(){const n=$('nfName').value.trim(),raw=$('nfArea').value.trim(),a=raw===''?0:Number(raw.replace(',','.')),c=$('nfCrop').value.trim(),landType=$('nfLandType').value;if(raw!==''&&(!Number.isFinite(a)||a<0))return alert('Die Fläche darf nicht negativ oder ungültig sein. Leer bzw. 0 ist erlaubt und wird als unvollständig markiert.');db.fields.push({id:uid('f'),name:n,area:a,landType,currentCrop:c,history:[{year:db.meta.activeYear,crop:c,yield:'',note:''}]});persist('Feld angelegt');closeModal()}
 function editField(id){const f=field(id);openModal('Feld bearbeiten',`<div class="form3"><div><label>Name</label><input id="efName" value="${escHtml(f.name||'')}"></div><div><label>Fläche ha</label><input id="efArea" type="number" step=".01" min="0" value="${validPositive(f.area)?f.area:''}"><div class="small">Kann vorerst leer bleiben; der Eintrag wird dann rot markiert.</div></div><div><label>Flächenart</label><select id="efLandType"><option value="acker" ${!isPermanentGrassland(f)?'selected':''}>Acker</option><option value="dauerwiese" ${isPermanentGrassland(f)?'selected':''}>Dauerwiese</option></select><div class="small">Dauerwiesen werden nicht in der Fruchtfolgeplanung angezeigt.</div></div></div><label>Aktuelle Kultur / Nutzung</label><input id="efCrop" value="${escHtml(f.currentCrop||'')}"><label>Notiz aktuelles Jahr</label><textarea id="efNote">${escHtml((f.history||[]).find(h=>h.year===db.meta.activeYear)?.note||'')}</textarea><button class="primary" onclick="saveFieldEdit('${id}')">Speichern</button>`)}
 function saveFieldEdit(id){const name=$('efName').value.trim(),raw=$('efArea').value.trim(),area=raw===''?0:Number(raw.replace(',','.'));if(raw!==''&&(!Number.isFinite(area)||area<0))return alert('Die Fläche darf nicht negativ oder ungültig sein. Leer bzw. 0 ist erlaubt und wird als unvollständig markiert.');const f=field(id);f.name=name;f.area=area;f.landType=$('efLandType').value;f.currentCrop=$('efCrop').value;f.history=f.history||[];let h=f.history.find(x=>x.year===db.meta.activeYear);if(!h){h={year:db.meta.activeYear,crop:f.currentCrop,yield:'',note:''};f.history.push(h)}h.crop=f.currentCrop;h.note=$('efNote').value;persist('Feld bearbeitet');closeModal()}
+
+function splitField(id){
+ const f=field(id); if(!f)return;
+ const total=Number(f.area||0);
+ if(!(total>0))return alert('Dieses Feld hat noch keine gültige Fläche und kann deshalb nicht geteilt werden.');
+ const suggested=(f.name||'Feld')+' Teilfläche';
+ openModal('Feld teilen',\`<div class="note"><b>\${escHtml(f.name||'Feld')}</b> · \${fmt(total)} ha<br><span class="small">Gib die Fläche an, die als neues eigenes Feld abgetrennt werden soll. Die Restfläche wird automatisch berechnet. Die bestehende Feldgrenze bleibt beim ursprünglichen Feld.</span></div>
+ <div class="form2"><div><label>Name der neuen Teilfläche</label><input id="sfName" value="\${escHtml(suggested)}"></div><div><label>Abzutrennende Fläche (ha)</label><input id="sfArea" type="number" step=".01" min=".01" max="\${Math.max(.01,total-.01)}" oninput="updateSplitPreview('\${id}')"></div></div>
+ <div id="sfPreview" class="note" style="margin-top:10px">Bitte Teilfläche eingeben.</div>
+ <br><button class="primary" onclick="saveFieldSplit('\${id}')">Feld teilen</button> <button class="secondary" onclick="fieldDetail('\${id}')">Abbrechen</button>\`);
+}
+function updateSplitPreview(id){
+ const f=field(id); if(!f)return;
+ const part=Number((($('sfArea')?.value||'')+'').replace(',','.')), total=Number(f.area||0), rest=total-part;
+ const el=$('sfPreview'); if(!el)return;
+ if(!Number.isFinite(part)||part<=0){el.innerHTML='Bitte eine gültige Teilfläche eingeben.';return}
+ if(rest<=0){el.innerHTML='<span class="red"><b>Die Teilfläche muss kleiner als die Gesamtfläche sein.</b></span>';return}
+ el.innerHTML=\`Neue Teilfläche: <b>\${fmt(part)} ha</b> · Restfläche von \${escHtml(f.name||'Feld')}: <b>\${fmt(rest)} ha</b>\`;
+}
+function saveFieldSplit(id){
+ const f=field(id); if(!f)return;
+ const name=($('sfName')?.value||'').trim();
+ const part=Number((($('sfArea')?.value||'')+'').replace(',','.'));
+ const total=Number(f.area||0), rest=total-part;
+ if(!name)return alert('Bitte einen Namen für die neue Teilfläche eingeben.');
+ if(!Number.isFinite(part)||part<=0)return alert('Bitte eine gültige Teilfläche eingeben.');
+ if(!(rest>0))return alert('Die Teilfläche muss kleiner als die Gesamtfläche sein.');
+ const copy=deep(f);
+ copy.id=uid('f'); copy.name=name; copy.area=Math.round(part*10000)/10000;
+ delete copy.geometry;
+ copy.source=copy.source?deep(copy.source):undefined;
+ if(copy.source){copy.source.parentFieldId=id;copy.source.splitFrom=f.name||'';copy.source.splitArea=copy.area}
+ copy.history=deep(f.history||[]);
+ f.area=Math.round(rest*10000)/10000;
+ db.fields.push(copy);
+ persist('Feld geteilt'); closeModal(); renderAll(); fieldDetail(copy.id);
+}
 
 function fieldLinks(id){
  const works=(db.workOperations||[]).filter(w=>(w.fieldIds||[]).includes(id));
@@ -1997,14 +2034,14 @@ function importBackup(inp){
 }
 function productionEmptyState(){
  const keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||defaults.meta);
- keepMeta.appVersion='Version 1.0.15'; keepMeta.lastModifiedAt=new Date().toISOString();
+ keepMeta.appVersion='Version 1.0.16'; keepMeta.lastModifiedAt=new Date().toISOString();
  return {meta:keepMeta,settings:keepSettings,fields:[],workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
 }
 async function resetOperationalDataKeepFields(){
  if(!confirm('Wirklich alle bisherigen Test- und Betriebsdaten außer den Feldern löschen?\n\nFelder, Feldgrenzen und Felddaten bleiben erhalten. Arbeitsgänge, Lager, Fruchtfolge, Sortenversuche, Begrünungen, Fotos, Tiere, Fütterung, Maschinen und Kalender werden geleert.'))return;
  if(!confirm('Letzte Bestätigung: Diese Bereinigung wird anschließend auch mit dem Online-Betrieb synchronisiert. Bitte vorher bei Bedarf eine Sicherung herunterladen.'))return;
  const keepFields=deep(db.fields||[]), keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||{});
- keepMeta.appVersion='Version 1.0.15';
+ keepMeta.appVersion='Version 1.0.16';
  keepMeta.lastModifiedAt=new Date().toISOString();
  delete keepMeta.lastYearChange;
  db={meta:keepMeta,settings:keepSettings,fields:keepFields,workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
