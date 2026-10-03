@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.19</title>
+<title>BetriebsApp – Version 1.0.20</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.19</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.20</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.19';
+window.APP_VERSION = '1.0.20';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1731,17 +1731,10 @@ function completeMachineService(id){
 }
 function deleteMachine(id){
  const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;
- const external=[];
- (db.workOperations||[]).forEach(w=>{const raw=JSON.stringify(w.details||{}).toLowerCase();if(m.name&&raw.includes(String(m.name).toLowerCase()))external.push(`Arbeitsgang ${w.date||''} ${w.type||''}`.trim())});
- if(external.length){alert(`Die Maschine kann noch nicht gelöscht werden, weil sie in ${external.length} Arbeitsgang/Arbeitsgängen erwähnt wird. Bitte dort zuerst die Maschinenangabe ändern oder entfernen.\n\n${external.slice(0,5).join('\n')}`);return}
  const maintenance=(m.maintenance||[]).length,repairs=(m.repairs||[]).length,cal=(db.calendarEvents||[]).filter(e=>e.sourceType==='machine'&&(e.sourceId==='machine:'+m.id||e.sourceId===m.id)).length;
  const details=[];if(maintenance)details.push(`${maintenance} Wartungseintrag${maintenance===1?'':'e'}`);if(repairs)details.push(`${repairs} Reparatur-/Hinweiseintrag${repairs===1?'':'e'}`);if(cal)details.push(`${cal} Kalendertermin${cal===1?'':'e'}`);
- const extra=details.length?`
-
-Mit der Maschine werden auch gelöscht: ${details.join(', ')}.`:'';
- if(!confirm(`Maschine „${m.name||'–'}“ wirklich löschen?${extra}
-
-Diese Aktion kann nur über eine Datensicherung rückgängig gemacht werden.`))return;
+ const extra=details.length?`\n\nMit der Maschine werden auch gelöscht: ${details.join(', ')}.`:'';
+ if(!confirm(`Maschine „${m.name||'–'}“ wirklich löschen?${extra}\n\nArbeitsgänge bleiben unverändert und sind nicht mit dem Maschinenstamm verknüpft.`))return;
  db.calendarEvents=(db.calendarEvents||[]).filter(e=>!(e.sourceType==='machine'&&(e.sourceId==='machine:'+m.id||e.sourceId===m.id)));
  db.machines=(db.machines||[]).filter(x=>x.id!==id);
  persist('Maschine gelöscht');closeModal();
@@ -2016,14 +2009,14 @@ function importBackup(inp){
 }
 function productionEmptyState(){
  const keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||defaults.meta);
- keepMeta.appVersion='Version 1.0.19'; keepMeta.lastModifiedAt=new Date().toISOString();
+ keepMeta.appVersion='Version 1.0.20'; keepMeta.lastModifiedAt=new Date().toISOString();
  return {meta:keepMeta,settings:keepSettings,fields:[],workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
 }
 async function resetOperationalDataKeepFields(){
  if(!confirm('Wirklich alle bisherigen Test- und Betriebsdaten außer den Feldern löschen?\n\nFelder, Feldgrenzen und Felddaten bleiben erhalten. Arbeitsgänge, Lager, Fruchtfolge, Sortenversuche, Begrünungen, Fotos, Tiere, Fütterung, Maschinen und Kalender werden geleert.'))return;
  if(!confirm('Letzte Bestätigung: Diese Bereinigung wird anschließend auch mit dem Online-Betrieb synchronisiert. Bitte vorher bei Bedarf eine Sicherung herunterladen.'))return;
  const keepFields=deep(db.fields||[]), keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||{});
- keepMeta.appVersion='Version 1.0.19';
+ keepMeta.appVersion='Version 1.0.20';
  keepMeta.lastModifiedAt=new Date().toISOString();
  delete keepMeta.lastYearChange;
  db={meta:keepMeta,settings:keepSettings,fields:keepFields,workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
