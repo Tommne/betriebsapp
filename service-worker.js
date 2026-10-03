@@ -1,4 +1,4 @@
-const CACHE_NAME = 'betriebsapp-v1.0.21';
+const CACHE_NAME = 'betriebsapp-v1.0.22';
 
 const APP_FILES = [
   './',
