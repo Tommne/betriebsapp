@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.20</title>
+<title>BetriebsApp – Version 1.0.21</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.20</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.21</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.20';
+window.APP_VERSION = '1.0.21';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1847,6 +1847,17 @@ async function chooseCloudFarm(id,name,role){
 
 async function cloudLogout(){
  await CloudBackend.signOut();await SyncEngine.init();closeModal();renderAll();
+}
+async function topManualSync(){
+ const b=$('topSyncButton');if(b){b.disabled=true;b.textContent='↻ Synchronisiere…'}
+ try{
+  const r=await SyncEngine.syncNow();
+  if(r.ok){if(r.state){db=r.state;window.db=db;await LocalDB.set('appState',db);renderAll()}await SyncEngine.refresh();return}
+  if(r.reason==='offline')return alert('Gerät ist offline. Änderungen bleiben lokal gespeichert und können später synchronisiert werden.');
+  if(r.reason==='not_ready')return alert('Bitte zuerst Online-Verbindung, Anmeldung und Betrieb einrichten.');
+  if(r.reason==='conflict'){openModal('Änderungen auf zwei Geräten',`<div class="note yellow"><b>Sicherheitsstopp:</b> Auf diesem Gerät und online wurden seit dem letzten Abgleich Änderungen gemacht. Es wird nichts automatisch überschrieben.</div><p>Welche Version möchtest du verwenden?</p><button class="primary" onclick="keepLocalConflict()">Diese Geräte-Version verwenden</button> <button class="secondary" onclick="useRemoteConflict()">Online-Version verwenden</button><p class="small">Vor einer Entscheidung kannst du über Einstellungen → Datensicherung zusätzlich eine JSON-Sicherung dieses Geräts herunterladen.</p>`);window._syncConflict=r;return}
+  alert('Synchronisierung nicht möglich: '+(r.error?.message||r.reason));
+ }finally{if(b){b.disabled=false;b.textContent='↻ Synchronisieren'}}
 }
 async function manualSync(){
  const r=await SyncEngine.syncNow();
