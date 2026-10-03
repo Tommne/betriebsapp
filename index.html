@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.18</title>
+<title>BetriebsApp – Version 1.0.19</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.18</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.19</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.18';
+window.APP_VERSION = '1.0.19';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1327,8 +1327,10 @@ function saveOtherItem(){const name=$('oiName').value.trim(),unit=$('oiUnit').va
 function seedLotDetail(id){
  const lot=(db.seedLots||[]).find(x=>x.id===id);if(!lot)return;const ms=(db.seedMovements||[]).filter(m=>m.lotId===id).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
  const linked=ms.filter(m=>m.sourceType==='work'&&m.sourceWorkId);
- openModal(`Saatgut – ${escHtml(lot.crop)} ${escHtml(lot.variety||'')}`,`<div class="grid3"><div class="card"><div class="small">Aktueller Bestand</div><div class="metric ${num(lot.currentKg)<0?'red':''}">${fmt(lot.currentKg,0)} kg</div></div><div class="card"><div class="small">Art</div><div class="metric">${escHtml(lot.type||'–')}</div></div><div class="card"><div class="small">Vorjahr</div><div class="metric">${fmt(lot.previousKg,0)} kg</div></div></div><h3>Automatische Saatgutbewegungen</h3>${ms.length?ms.map(m=>`<div class="note" style="margin:5px 0">${m.date||'–'} · ${m.delta>0?'+':''}${fmt(m.delta,0)} kg · ${escHtml(m.reason||'')}</div>`).join(''):'<div class="note">Noch keine automatisch verknüpften Saatgutbewegungen vorhanden.</div>'}<div class="toolbar" style="margin-top:14px"><span></span><button class="danger" onclick="deleteSeedLot('${lot.id}')">Saatgutposten löschen</button></div>${linked.length?'<div class="small red">Dieser Saatgutposten ist mit einem Säarbeitsgang verknüpft und kann erst nach Änderung/Löschung des Arbeitsgangs entfernt werden.</div>':''}`)
+ openModal(`Saatgut – ${escHtml(lot.crop)} ${escHtml(lot.variety||'')}`,`<div class="grid3"><div class="card"><div class="small">Aktueller Bestand</div><div class="metric ${num(lot.currentKg)<0?'red':''}">${fmt(lot.currentKg,0)} kg</div></div><div class="card"><div class="small">Art</div><div class="metric">${escHtml(lot.type||'–')}</div></div><div class="card"><div class="small">Vorjahr</div><div class="metric">${fmt(lot.previousKg,0)} kg</div></div></div><h3>Automatische Saatgutbewegungen</h3>${ms.length?ms.map(m=>`<div class="note" style="margin:5px 0">${m.date||'–'} · ${m.delta>0?'+':''}${fmt(m.delta,0)} kg · ${escHtml(m.reason||'')}</div>`).join(''):'<div class="note">Noch keine automatisch verknüpften Saatgutbewegungen vorhanden.</div>'}<div class="toolbar" style="margin-top:14px"><div><button class="secondary" onclick="seedAdjustment('${lot.id}','Korrektur')">Bestand korrigieren</button> <button class="secondary" onclick="seedAdjustment('${lot.id}','Verkauf')">Verkauf buchen</button></div><button class="dangerbtn" onclick="deleteSeedLot('${lot.id}')">Saatgutposten löschen</button></div>${linked.length?'<div class="small red">Dieser Saatgutposten ist mit einem Säarbeitsgang verknüpft und kann erst nach Änderung/Löschung des Arbeitsgangs entfernt werden.</div>':''}`)
 }
+function seedAdjustment(id,mode){const lot=(db.seedLots||[]).find(x=>x.id===id);if(!lot)return;openModal(mode+' – '+escHtml(lot.crop)+(lot.variety?' '+escHtml(lot.variety):''),`<div class="note">Aktueller Bestand: <b>${fmt(lot.currentKg,0)} kg</b></div><div class="form2"><div><label>${mode==='Verkauf'?'Verkaufte Menge kg':'Änderung kg (+ Zugang / − Abgang)'}</label><input id="seaQty" type="number" step="1" min="${mode==='Verkauf'?'0':''}"></div><div><label>Datum</label><input id="seaDate" type="date" value="${today()}"></div></div><label>Grund / Notiz</label><input id="seaReason" value="${mode==='Verkauf'?'Verkauf':'Bestandskorrektur'}"><br><button class="primary" onclick="saveSeedAdjustment('${id}','${mode}')">Buchen</button>`)}
+function saveSeedAdjustment(id,mode){const lot=(db.seedLots||[]).find(x=>x.id===id);if(!lot)return;let q=Number($('seaQty').value);if(!Number.isFinite(q)||q===0)return alert('Bitte eine gültige Menge eingeben.');if(mode==='Verkauf')q=-Math.abs(q);const next=num(lot.currentKg)+q;if(next<0&&!confirm('Dadurch würde der Saatgutbestand negativ. Trotzdem buchen?'))return;lot.currentKg=next;db.seedMovements=db.seedMovements||[];db.seedMovements.push({id:uid('sm'),lotId:id,date:$('seaDate').value||today(),delta:q,reason:$('seaReason').value.trim()||mode,sourceType:'manual',sourceWorkId:''});persist(mode==='Verkauf'?'Saatgutverkauf gebucht':'Saatgutbestand korrigiert');closeModal();setTimeout(()=>seedLotDetail(id),50)}
 function deleteSeedLot(id){
  const lot=(db.seedLots||[]).find(x=>x.id===id);if(!lot)return;
  const linked=(db.seedMovements||[]).filter(m=>m.lotId===id&&m.sourceType==='work'&&m.sourceWorkId);
@@ -2014,14 +2016,14 @@ function importBackup(inp){
 }
 function productionEmptyState(){
  const keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||defaults.meta);
- keepMeta.appVersion='Version 1.0.18'; keepMeta.lastModifiedAt=new Date().toISOString();
+ keepMeta.appVersion='Version 1.0.19'; keepMeta.lastModifiedAt=new Date().toISOString();
  return {meta:keepMeta,settings:keepSettings,fields:[],workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
 }
 async function resetOperationalDataKeepFields(){
  if(!confirm('Wirklich alle bisherigen Test- und Betriebsdaten außer den Feldern löschen?\n\nFelder, Feldgrenzen und Felddaten bleiben erhalten. Arbeitsgänge, Lager, Fruchtfolge, Sortenversuche, Begrünungen, Fotos, Tiere, Fütterung, Maschinen und Kalender werden geleert.'))return;
  if(!confirm('Letzte Bestätigung: Diese Bereinigung wird anschließend auch mit dem Online-Betrieb synchronisiert. Bitte vorher bei Bedarf eine Sicherung herunterladen.'))return;
  const keepFields=deep(db.fields||[]), keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||{});
- keepMeta.appVersion='Version 1.0.18';
+ keepMeta.appVersion='Version 1.0.19';
  keepMeta.lastModifiedAt=new Date().toISOString();
  delete keepMeta.lastYearChange;
  db={meta:keepMeta,settings:keepSettings,fields:keepFields,workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
