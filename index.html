@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.17</title>
+<title>BetriebsApp – Version 1.0.18</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.17</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><div class="small desktopHint">Version 1.0.18</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.17';
+window.APP_VERSION = '1.0.18';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -771,7 +771,7 @@ function showValidationIssues(){
  const v=validationRecords();
  openModal('Unvollständige Einträge',v.length?`<div class="note validation-summary"><b>${v.length} Eintrag${v.length===1?'':'e'} prüfen</b><br><span class="small">Nur notwendige Angaben werden geprüft. Optionale Notizen, Fotos oder Zusatzdaten lösen keine Warnung aus.</span></div>${v.map(x=>`<div class="card click incomplete-card" style="margin:7px 0" onclick="openValidationIssue('${x.kind}','${x.id}')"><b>${x.title}</b><div class="validation-hint">⚠ ${x.messages.join(' · ')}</div></div>`).join('')}`:'<div class="note green">Alle notwendigen Angaben sind vollständig.</div>')
 }
-function ensureSettings(){db.settings=db.settings||{};db.settings.customSelectOptions=db.settings.customSelectOptions||{};db.settings.animalExitReasons=db.settings.animalExitReasons||['Verkauft','Verendet','Sonstiger Abgang'];db.settings.seedRates=db.settings.seedRates||{};db.settings.trialEndingWorkTypes=db.settings.trialEndingWorkTypes||['Dreschen','Mähen','Pflügen','Grubbern'];db.settings.manureIncorpHours=Number.isFinite(Number(db.settings.manureIncorpHours))?Number(db.settings.manureIncorpHours):4;db.settings.slurryIncorpHours=Number.isFinite(Number(db.settings.slurryIncorpHours))?Number(db.settings.slurryIncorpHours):4;(db.trials||[]).forEach(t=>{if(!t.status)t.status='aktiv'})}
+function ensureSettings(){db.settings=db.settings||{};db.settings.customSelectOptions=db.settings.customSelectOptions||{};db.settings.animalExitReasons=db.settings.animalExitReasons||['Verkauft','Verendet','Sonstiger Abgang'];db.settings.seedRates=db.settings.seedRates||{};db.settings.baleWeights=db.settings.baleWeights||{};if(!Number(db.settings.baleWeights.Heu))db.settings.baleWeights.Heu=350;if(!Number(db.settings.baleWeights.Stroh))db.settings.baleWeights.Stroh=250;if(!Number(db.settings.baleWeights['Silage Ballen']))db.settings.baleWeights['Silage Ballen']=750;db.settings.siloTonnesPerM3=Number(db.settings.siloTonnesPerM3)>0?Number(db.settings.siloTonnesPerM3):0.65;db.settings.stockCutoff=db.settings.stockCutoff||'12-31';db.settings.warningDays=Number.isFinite(Number(db.settings.warningDays))?Number(db.settings.warningDays):5;db.settings.trialEndingWorkTypes=db.settings.trialEndingWorkTypes||['Dreschen','Mähen','Pflügen','Grubbern'];db.settings.manureIncorpHours=Number.isFinite(Number(db.settings.manureIncorpHours))?Number(db.settings.manureIncorpHours):4;db.settings.slurryIncorpHours=Number.isFinite(Number(db.settings.slurryIncorpHours))?Number(db.settings.slurryIncorpHours):4;(db.trials||[]).forEach(t=>{if(!t.status)t.status='aktiv'})}
 function updateAccessGate(){
  const gate=$('accessGate'),body=$('accessGateBody');if(!gate||!body)return false;
  const st=CloudBackend.status();
@@ -906,7 +906,7 @@ function splitField(id){
  openModal('Feld teilen',`<div class="note"><b>${escHtml(f.name||'Feld')}</b> · ${fmt(total)} ha<br><span class="small">Gib die Fläche an, die als neues eigenes Feld abgetrennt werden soll. Die Restfläche wird automatisch berechnet. Die bestehende Feldgrenze bleibt beim ursprünglichen Feld.</span></div><div class="form2"><div><label>Name der neuen Teilfläche</label><input id="sfName" value="${escHtml((f.name||'Feld')+' Teilfläche')}"></div><div><label>Abzutrennende Fläche (ha)</label><input id="sfArea" type="number" step=".01" min=".01" oninput="updateSplitPreview('${id}')"></div></div><div id="sfPreview" class="note" style="margin-top:10px">Bitte Teilfläche eingeben.</div><br><button class="primary" onclick="saveFieldSplit('${id}')">Feld teilen</button> <button class="secondary" onclick="fieldDetail('${id}')">Abbrechen</button>`);
 }
 function updateSplitPreview(id){const f=field(id),part=num(($('sfArea')?.value||'').replace(',','.')),rest=num(f?.area)-part,el=$('sfPreview');if(!el)return;if(!(part>0))return el.textContent='Bitte eine gültige Teilfläche eingeben.';el.innerHTML=rest>0?`Neue Teilfläche: <b>${fmt(part)} ha</b> · Restfläche: <b>${fmt(rest)} ha</b>`:'<span class="red"><b>Die Teilfläche muss kleiner als die Gesamtfläche sein.</b></span>'}
-function saveFieldSplit(id){const f=field(id);if(!f)return;const name=($('sfName')?.value||'').trim(),part=Number((($('sfArea')?.value||'')+'').replace(',','.')),rest=num(f.area)-part;if(!name)return alert('Bitte einen Namen für die neue Teilfläche eingeben.');if(!(part>0&&rest>0))return alert('Bitte eine gültige Teilfläche eingeben.');const copy=deep(f);copy.id=uid('f');copy.name=name;copy.area=Math.round(part*10000)/10000;delete copy.geometry;if(copy.source){copy.source=deep(copy.source);copy.source.parentFieldId=id;copy.source.splitFrom=f.name||''}copy.history=deep(f.history||[]);f.area=Math.round(rest*10000)/10000;db.fields.push(copy);persist('Feld geteilt');closeModal();renderAll();fieldDetail(copy.id)}
+function saveFieldSplit(id){const f=field(id);if(!f)return;const name=($('sfName')?.value||'').trim(),part=Number((($('sfArea')?.value||'')+'').replace(',','.')),rest=num(f.area)-part;if(!name)return alert('Bitte einen Namen für die neue Teilfläche eingeben.');if(!(part>0&&rest>0))return alert('Bitte eine gültige Teilfläche eingeben.');const copy=deep(f);copy.id=uid('f');copy.name=name;copy.area=Math.round(part*10000)/10000;delete copy.geometry;copy.source=copy.source?deep(copy.source):{};copy.source.parentFieldId=id;copy.source.splitFrom=f.name||'';copy.source.splitArea=copy.area;copy.history=deep(f.history||[]);f.area=Math.round(rest*10000)/10000;db.fields.push(copy);persist('Feld geteilt');closeModal();renderAll();fieldDetail(copy.id)}
 function fieldLinks(id){
  const works=(db.workOperations||[]).filter(w=>(w.fieldIds||[]).includes(id));
  const trials=(db.trials||[]).filter(x=>x.fieldId===id);
@@ -927,9 +927,13 @@ function deleteField(id){
    if(l.photos.length)parts.push(l.photos.length+' Bestandsbild(er)');
    return alert('Dieses Feld ist bereits verknüpft und wird deshalb nicht gelöscht.\n\nVerknüpft mit: '+parts.join(', ')+'.\n\nEntferne oder korrigiere zuerst diese Verknüpfungen. So gehen keine echten Betriebsdaten versehentlich verloren.');
  }
- if(!confirm('Feld „'+(f.name||'ohne Namen')+'“ wirklich löschen?\n\nDie gespeicherte Feldgrenze wird ebenfalls entfernt. Der INVEKOS-Schlag kann später wieder neu importiert werden.'))return;
+ const parentId=f.source?.parentFieldId,parent=parentId?field(parentId):null;
+ const restore=parent?num(f.area):0;
+ const msg=parent?'Feld „'+(f.name||'ohne Namen')+'“ wirklich löschen?\n\nDie '+fmt(restore)+' ha werden automatisch wieder zu „'+(parent.name||'Elternfeld')+'“ hinzugefügt.':'Feld „'+(f.name||'ohne Namen')+'“ wirklich löschen?\n\nDie gespeicherte Feldgrenze wird ebenfalls entfernt. Der INVEKOS-Schlag kann später wieder neu importiert werden.';
+ if(!confirm(msg))return;
+ if(parent)parent.area=Math.round((num(parent.area)+restore)*10000)/10000;
  db.fields=db.fields.filter(x=>x.id!==id);
- persist('Feld gelöscht'); closeModal();
+ persist(parent?'Teilfläche gelöscht und Fläche zurückgebucht':'Feld gelöscht'); closeModal();
 }
 
 // --- Alpha 2.3: Karten- und INVEKOS-Feldimport ---
@@ -1288,8 +1292,10 @@ function storageDetail(id){
  const i=item(id);if(!i)return;
  const ms=db.storageMovements.filter(m=>m.itemId===id).sort((a,b)=>b.date.localeCompare(a.date));
  const linked=ms.filter(m=>m.sourceType==='work'&&m.sourceId);
- openModal(i.name,`<div class="grid3"><div class="card"><div class="small">Aktueller Bestand</div><div class="metric">${fmt(sumStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Bestand Vorjahr</div><div class="metric">${fmt(previousStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Mindestbestand</div><div class="metric">${i.min||0} ${i.unit}</div></div></div><h3>Bewegungen</h3>${ms.length?ms.map(m=>`<div class="note" style="margin:5px 0">${m.date} · ${m.delta>0?'+':''}${m.delta} ${i.unit} · ${m.reason}</div>`).join(''):'<div class="note">Noch keine Bewegungen vorhanden.</div>'}<div class="toolbar" style="margin-top:14px"><span></span><button class="danger" onclick="deleteStorageItem('${i.id}')">Artikel löschen</button></div>${linked.length?'<div class="small red">Dieser Artikel ist mit Arbeitsgängen verknüpft und kann erst gelöscht werden, wenn diese Verknüpfungen entfernt wurden.</div>':''}`)
+ openModal(i.name,`<div class="grid3"><div class="card"><div class="small">Aktueller Bestand</div><div class="metric">${fmt(sumStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Bestand Vorjahr</div><div class="metric">${fmt(previousStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Mindestbestand</div><div class="metric">${i.min||0} ${i.unit}</div></div></div><h3>Bewegungen</h3>${ms.length?ms.map(m=>`<div class="note" style="margin:5px 0">${m.date} · ${m.delta>0?'+':''}${m.delta} ${i.unit} · ${m.reason}</div>`).join(''):'<div class="note">Noch keine Bewegungen vorhanden.</div>'}<div class="toolbar" style="margin-top:14px"><div><button class="secondary" onclick="storageAdjustment('${i.id}','Korrektur')">Bestand korrigieren</button> <button class="secondary" onclick="storageAdjustment('${i.id}','Verkauf')">Verkauf buchen</button></div><button class="dangerbtn" onclick="deleteStorageItem('${i.id}')">Artikel löschen</button></div>${linked.length?'<div class="small red">Dieser Artikel ist mit Arbeitsgängen verknüpft und kann erst gelöscht werden, wenn diese Verknüpfungen entfernt wurden.</div>':''}`)
 }
+function storageAdjustment(id,mode){const i=item(id);if(!i)return;openModal(mode+' – '+escHtml(i.name),`<div class="note">Aktueller Bestand: <b>${fmt(sumStock(id),1)} ${escHtml(i.unit)}</b></div><div class="form2"><div><label>${mode==='Verkauf'?'Verkaufte Menge':'Änderung (+ Zugang / − Abgang)'}</label><input id="saQty" type="number" step="0.1" min="${mode==='Verkauf'?'0':''}"></div><div><label>Datum</label><input id="saDate" type="date" value="${today()}"></div></div><label>Grund / Notiz</label><input id="saReason" value="${mode==='Verkauf'?'Verkauf':'Bestandskorrektur'}"><br><button class="primary" onclick="saveStorageAdjustment('${id}','${mode}')">Buchen</button>`)}
+function saveStorageAdjustment(id,mode){const i=item(id);if(!i)return;let q=Number($('saQty').value);if(!Number.isFinite(q)||q===0)return alert('Bitte eine gültige Menge eingeben.');if(mode==='Verkauf')q=-Math.abs(q);const next=sumStock(id)+q;if(next<0&&!confirm('Dadurch würde der Lagerbestand negativ. Trotzdem buchen?'))return;db.storageMovements.push({id:uid('mv'),itemId:id,date:$('saDate').value||today(),delta:q,reason:$('saReason').value.trim()||mode,sourceType:'manual',sourceId:''});persist(mode==='Verkauf'?'Verkauf gebucht':'Lagerbestand korrigiert');closeModal();setTimeout(()=>storageDetail(id),50)}
 function deleteStorageItem(id){
  const i=item(id);if(!i)return;
  const linked=db.storageMovements.filter(m=>m.itemId===id&&m.sourceType==='work'&&m.sourceId);
@@ -2008,14 +2014,14 @@ function importBackup(inp){
 }
 function productionEmptyState(){
  const keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||defaults.meta);
- keepMeta.appVersion='Version 1.0.17'; keepMeta.lastModifiedAt=new Date().toISOString();
+ keepMeta.appVersion='Version 1.0.18'; keepMeta.lastModifiedAt=new Date().toISOString();
  return {meta:keepMeta,settings:keepSettings,fields:[],workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
 }
 async function resetOperationalDataKeepFields(){
  if(!confirm('Wirklich alle bisherigen Test- und Betriebsdaten außer den Feldern löschen?\n\nFelder, Feldgrenzen und Felddaten bleiben erhalten. Arbeitsgänge, Lager, Fruchtfolge, Sortenversuche, Begrünungen, Fotos, Tiere, Fütterung, Maschinen und Kalender werden geleert.'))return;
  if(!confirm('Letzte Bestätigung: Diese Bereinigung wird anschließend auch mit dem Online-Betrieb synchronisiert. Bitte vorher bei Bedarf eine Sicherung herunterladen.'))return;
  const keepFields=deep(db.fields||[]), keepSettings=deep(db.settings||defaults.settings), keepMeta=deep(db.meta||{});
- keepMeta.appVersion='Version 1.0.17';
+ keepMeta.appVersion='Version 1.0.18';
  keepMeta.lastModifiedAt=new Date().toISOString();
  delete keepMeta.lastYearChange;
  db={meta:keepMeta,settings:keepSettings,fields:keepFields,workOperations:[],storageItems:[],storageMovements:[],grainLots:[],seedLots:[],seedMovements:[],rotationPlans:[],trials:[],coverCrops:[],fieldPhotos:[],animals:[],births:[],feeding:{ration:[],stallStock:[]},machines:[],calendarEvents:[],auditLog:[]};
