@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.21</title>
+<title>BetriebsApp – Version 1.0.22</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.21</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.22</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.21';
+window.APP_VERSION = '1.0.22';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1250,18 +1250,20 @@ function saveBaleDetails(id){
  db.storageMovements.push({id:uid('mv'),itemId:it,date:w.date,delta:total,reason:'Rundballen pressen',sourceType:'work',sourceId:id});
  persist(`${fmt(total,0)} Rundballen ins Futterlager gebucht`);closeModal();
 }
+function normalizedUnit(i){return String(i?.unit||'').trim().toLowerCase().replace('³','3')}
+function isBaleItem(i){const u=normalizedUnit(i),n=String(i?.name||'').toLowerCase();return u.includes('ballen')||n.includes('ballen')}
+function isSiloM3Item(i){const u=normalizedUnit(i),n=String(i?.name||'').toLowerCase();return u==='m3'||u.includes('m3')||((n.includes('fahrsilo')||n.includes('silo'))&&(u==='m³'||u==='m3'))}
 function baleWeightForItem(i){
- if(!i||i.unit!=='Ballen')return 0;
+ if(!i||!isBaleItem(i))return 0;
  const weights=db.settings?.baleWeights||{};
  if(Number(weights[i.name])>0)return Number(weights[i.name]);
  const n=String(i.name||'').toLowerCase();
- const entries=Object.entries(weights);
- const exactKeyword=entries.find(([k,v])=>Number(v)>0&&n.includes(String(k).toLowerCase()));
- if(exactKeyword)return Number(exactKeyword[1]);
+ if((n.includes('silage')||n.includes('silo'))&&Number(weights['Silage Ballen'])>0)return Number(weights['Silage Ballen']);
  if(n.includes('heu')&&Number(weights.Heu)>0)return Number(weights.Heu);
  if(n.includes('stroh')&&Number(weights.Stroh)>0)return Number(weights.Stroh);
- if(n.includes('silage')&&Number(weights['Silage Ballen'])>0)return Number(weights['Silage Ballen']);
- return 0;
+ const entries=Object.entries(weights);
+ const exactKeyword=entries.find(([k,v])=>Number(v)>0&&n.includes(String(k).toLowerCase()));
+ return exactKeyword?Number(exactKeyword[1]):0;
 }
 function baleTonnesForItem(i,count){const kg=baleWeightForItem(i);return kg>0?num(count)*kg/1000:0}
 function stallEligibleItems(){return (db.storageItems||[]).filter(i=>['Futter','Kraftfutter','Sonstige'].includes(i.category))}
@@ -1271,7 +1273,7 @@ function rationName(r){return rationItem(r)?.name||r?.item||'Unbekannter Artikel
 function normalizeRation(){db.feeding=db.feeding||{ration:[],stallStock:[]};db.feeding.ration=db.feeding.ration||[];db.feeding.ration=db.feeding.ration.map(r=>{const it=rationItem(r);return it?{itemId:it.id,kgPerDay:num(r.kgPerDay)}:r})}
 function renderStorage(){
  const feeds=db.storageItems.filter(i=>i.category==='Futter'),concentrates=db.storageItems.filter(i=>i.category==='Kraftfutter'),others=db.storageItems.filter(i=>i.category==='Sonstige');
- $('feed').innerHTML=`<div class="toolbar"><span></span><button class="primary" onclick="addFeedItem()">+ Futterartikel</button></div><table><tr><th>Futter</th><th>Bestand</th><th>Vorjahr</th><th>Umrechnung</th></tr>${feeds.map(i=>{const s=sumStock(i.id),prev=previousStock(i.id);let cv='–';if(i.unit==='Ballen'){const bw=baleWeightForItem(i);cv=bw>0?'≈ '+fmt(baleTonnesForItem(i,s))+' t ('+fmt(bw,0)+' kg/Ballen)':'Umrechnung fehlt';}if(String(i.unit||'').toLowerCase()==='m³'||String(i.unit||'').toLowerCase()==='m3')cv='≈ '+fmt(s*db.settings.siloTonnesPerM3)+' t ('+fmt(db.settings.siloTonnesPerM3,2)+' t/m³)';return `<tr class="rowclick" onclick="storageDetail('${i.id}')"><td><b>${i.name}</b></td><td>${fmt(s,0)} ${i.unit}</td><td>${fmt(prev,0)} ${i.unit}</td><td>${cv}</td></tr>`}).join('')}</table>`;
+ $('feed').innerHTML=`<div class="toolbar"><span></span><button class="primary" onclick="addFeedItem()">+ Futterartikel</button></div><table><tr><th>Futter</th><th>Bestand</th><th>Vorjahr</th><th>Umrechnung</th></tr>${feeds.map(i=>{const s=sumStock(i.id),prev=previousStock(i.id);let cv='–';if(isBaleItem(i)){const bw=baleWeightForItem(i);cv=bw>0?'≈ '+fmt(baleTonnesForItem(i,s))+' t ('+fmt(bw,0)+' kg/Ballen)':'Umrechnung fehlt';}else if(isSiloM3Item(i)){cv='≈ '+fmt(s*num(db.settings.siloTonnesPerM3))+' t ('+fmt(db.settings.siloTonnesPerM3,2)+' t/m³)';}return `<tr class="rowclick" onclick="storageDetail('${i.id}')"><td><b>${i.name}</b></td><td>${fmt(s,0)} ${i.unit}</td><td>${fmt(prev,0)} ${i.unit}</td><td>${cv}</td></tr>`}).join('')}</table>`;
  $('concentrate').innerHTML=`<div class="toolbar"><span></span><button class="primary" onclick="addConcentrateItem()">+ Kraftfutter</button></div><table><tr><th>Mischung</th><th>Bestand</th><th>Einheit</th><th>Mindestbestand</th></tr>${concentrates.map(i=>`<tr class="rowclick" onclick="storageDetail('${i.id}')"><td><b>${escHtml(i.name)}</b>${i.composition?`<div class="small">${escHtml(i.composition)}</div>`:''}</td><td>${fmt(sumStock(i.id),1)} ${escHtml(i.unit)}</td><td>${escHtml(i.unit)}</td><td>${fmt(i.min||0,1)} ${escHtml(i.unit)}</td></tr>`).join('')}</table>`;
  $('grain').innerHTML=`<div class="toolbar"><button class="primary" onclick="addGrainLot()">+ Getreide</button><button class="secondary" onclick="grainToSeed()">Getreide → Saatgut</button></div><table><tr><th>Kultur</th><th>Aktuell</th><th>Vorjahr</th></tr>${db.grainLots.map(g=>`<tr class="rowclick" onclick="grainLotDetail('${g.id}')"><td>${escHtml(g.crop)}</td><td>${fmt(g.currentKg,0)} kg</td><td>${fmt(g.previousKg,0)} kg</td></tr>`).join('')}</table>`;
  $('seed').innerHTML=`<div class="toolbar"><span></span><button class="primary" onclick="addSeedLot()">+ Saatgut</button></div><table><tr><th>Kultur</th><th>Sorte</th><th>Art</th><th>Aktuell</th><th>Vorjahr</th></tr>${db.seedLots.map(s=>`<tr class="rowclick" onclick="seedLotDetail('${s.id}')"><td>${escHtml(s.crop)}</td><td>${escHtml(s.variety||'')}</td><td>${escHtml(s.type||'')}</td><td class="${num(s.currentKg)<0?'red':''}"><b>${fmt(s.currentKg,0)} kg</b></td><td>${fmt(s.previousKg,0)} kg</td></tr>`).join('')}</table>`;
@@ -1292,7 +1294,7 @@ function storageDetail(id){
  const i=item(id);if(!i)return;
  const ms=db.storageMovements.filter(m=>m.itemId===id).sort((a,b)=>b.date.localeCompare(a.date));
  const linked=ms.filter(m=>m.sourceType==='work'&&m.sourceId);
- openModal(i.name,`<div class="grid3"><div class="card"><div class="small">Aktueller Bestand</div><div class="metric">${fmt(sumStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Bestand Vorjahr</div><div class="metric">${fmt(previousStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Mindestbestand</div><div class="metric">${i.min||0} ${i.unit}</div></div></div><h3>Bewegungen</h3>${ms.length?ms.map(m=>`<div class="note" style="margin:5px 0">${m.date} · ${m.delta>0?'+':''}${m.delta} ${i.unit} · ${m.reason}</div>`).join(''):'<div class="note">Noch keine Bewegungen vorhanden.</div>'}<div class="toolbar" style="margin-top:14px"><div><button class="secondary" onclick="storageAdjustment('${i.id}','Korrektur')">Bestand korrigieren</button> <button class="secondary" onclick="storageAdjustment('${i.id}','Verkauf')">Verkauf buchen</button></div><button class="dangerbtn" onclick="deleteStorageItem('${i.id}')">Artikel löschen</button></div>${linked.length?'<div class="small red">Dieser Artikel ist mit Arbeitsgängen verknüpft und kann erst gelöscht werden, wenn diese Verknüpfungen entfernt wurden.</div>':''}`)
+ openModal(i.name,`<div class="grid3"><div class="card"><div class="small">Aktueller Bestand</div><div class="metric">${fmt(sumStock(id),1)} ${i.unit}</div>${isBaleItem(i)&&baleWeightForItem(i)>0?`<div class="small">≈ ${fmt(baleTonnesForItem(i,sumStock(id)))} t · ${fmt(baleWeightForItem(i),0)} kg/Ballen</div>`:isSiloM3Item(i)?`<div class="small">≈ ${fmt(sumStock(id)*num(db.settings.siloTonnesPerM3))} t · ${fmt(db.settings.siloTonnesPerM3,2)} t/m³</div>`:''}</div><div class="card"><div class="small">Bestand Vorjahr</div><div class="metric">${fmt(previousStock(id),1)} ${i.unit}</div></div><div class="card"><div class="small">Mindestbestand</div><div class="metric">${i.min||0} ${i.unit}</div></div></div><h3>Bewegungen</h3>${ms.length?ms.map(m=>`<div class="note" style="margin:5px 0">${m.date} · ${m.delta>0?'+':''}${m.delta} ${i.unit} · ${m.reason}</div>`).join(''):'<div class="note">Noch keine Bewegungen vorhanden.</div>'}<div class="toolbar" style="margin-top:14px"><div><button class="secondary" onclick="storageAdjustment('${i.id}','Korrektur')">Bestand korrigieren</button> <button class="secondary" onclick="storageAdjustment('${i.id}','Verkauf')">Verkauf buchen</button></div><button class="dangerbtn" onclick="deleteStorageItem('${i.id}')">Artikel löschen</button></div>${linked.length?'<div class="small red">Dieser Artikel ist mit Arbeitsgängen verknüpft und kann erst gelöscht werden, wenn diese Verknüpfungen entfernt wurden.</div>':''}`)
 }
 function storageAdjustment(id,mode){const i=item(id);if(!i)return;openModal(mode+' – '+escHtml(i.name),`<div class="note">Aktueller Bestand: <b>${fmt(sumStock(id),1)} ${escHtml(i.unit)}</b></div><div class="form2"><div><label>${mode==='Verkauf'?'Verkaufte Menge':'Änderung (+ Zugang / − Abgang)'}</label><input id="saQty" type="number" step="0.1" min="${mode==='Verkauf'?'0':''}"></div><div><label>Datum</label><input id="saDate" type="date" value="${today()}"></div></div><label>Grund / Notiz</label><input id="saReason" value="${mode==='Verkauf'?'Verkauf':'Bestandskorrektur'}"><br><button class="primary" onclick="saveStorageAdjustment('${id}','${mode}')">Buchen</button>`)}
 function saveStorageAdjustment(id,mode){const i=item(id);if(!i)return;let q=Number($('saQty').value);if(!Number.isFinite(q)||q===0)return alert('Bitte eine gültige Menge eingeben.');if(mode==='Verkauf')q=-Math.abs(q);const next=sumStock(id)+q;if(next<0&&!confirm('Dadurch würde der Lagerbestand negativ. Trotzdem buchen?'))return;db.storageMovements.push({id:uid('mv'),itemId:id,date:$('saDate').value||today(),delta:q,reason:$('saReason').value.trim()||mode,sourceType:'manual',sourceId:''});persist(mode==='Verkauf'?'Verkauf gebucht':'Lagerbestand korrigiert');closeModal();setTimeout(()=>storageDetail(id),50)}
