@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.15';
+window.APP_VERSION = '1.0.16';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -905,10 +905,10 @@ function splitField(id){
  const total=Number(f.area||0);
  if(!(total>0))return alert('Dieses Feld hat noch keine gültige Fläche und kann deshalb nicht geteilt werden.');
  const suggested=(f.name||'Feld')+' Teilfläche';
- openModal('Feld teilen',\`<div class="note"><b>\${escHtml(f.name||'Feld')}</b> · \${fmt(total)} ha<br><span class="small">Gib die Fläche an, die als neues eigenes Feld abgetrennt werden soll. Die Restfläche wird automatisch berechnet. Die bestehende Feldgrenze bleibt beim ursprünglichen Feld.</span></div>
- <div class="form2"><div><label>Name der neuen Teilfläche</label><input id="sfName" value="\${escHtml(suggested)}"></div><div><label>Abzutrennende Fläche (ha)</label><input id="sfArea" type="number" step=".01" min=".01" max="\${Math.max(.01,total-.01)}" oninput="updateSplitPreview('\${id}')"></div></div>
+ openModal('Feld teilen',`<div class="note"><b>${escHtml(f.name||'Feld')}</b> · ${fmt(total)} ha<br><span class="small">Gib die Fläche an, die als neues eigenes Feld abgetrennt werden soll. Die Restfläche wird automatisch berechnet. Die bestehende Feldgrenze bleibt beim ursprünglichen Feld.</span></div>
+ <div class="form2"><div><label>Name der neuen Teilfläche</label><input id="sfName" value="${escHtml(suggested)}"></div><div><label>Abzutrennende Fläche (ha)</label><input id="sfArea" type="number" step=".01" min=".01" max="${Math.max(.01,total-.01)}" oninput="updateSplitPreview('${id}')"></div></div>
  <div id="sfPreview" class="note" style="margin-top:10px">Bitte Teilfläche eingeben.</div>
- <br><button class="primary" onclick="saveFieldSplit('\${id}')">Feld teilen</button> <button class="secondary" onclick="fieldDetail('\${id}')">Abbrechen</button>\`);
+ <br><button class="primary" onclick="saveFieldSplit('${id}')">Feld teilen</button> <button class="secondary" onclick="fieldDetail('${id}')">Abbrechen</button>`);
 }
 function updateSplitPreview(id){
  const f=field(id); if(!f)return;
@@ -916,7 +916,7 @@ function updateSplitPreview(id){
  const el=$('sfPreview'); if(!el)return;
  if(!Number.isFinite(part)||part<=0){el.innerHTML='Bitte eine gültige Teilfläche eingeben.';return}
  if(rest<=0){el.innerHTML='<span class="red"><b>Die Teilfläche muss kleiner als die Gesamtfläche sein.</b></span>';return}
- el.innerHTML=\`Neue Teilfläche: <b>\${fmt(part)} ha</b> · Restfläche von \${escHtml(f.name||'Feld')}: <b>\${fmt(rest)} ha</b>\`;
+ el.innerHTML=`Neue Teilfläche: <b>${fmt(part)} ha</b> · Restfläche von ${escHtml(f.name||'Feld')}: <b>${fmt(rest)} ha</b>`;
 }
 function saveFieldSplit(id){
  const f=field(id); if(!f)return;
