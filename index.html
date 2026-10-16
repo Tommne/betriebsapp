@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.24</title>
+<title>BetriebsApp – Version 1.0.25</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.24</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.25</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.24';
+window.APP_VERSION = '1.0.25';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1713,6 +1713,14 @@ function machineWarnings(){
 function renderMachines(){
  $('machineGrid').innerHTML=(db.machines||[]).map(raw=>{const m=ensureMachineData(raw),unit=machineUnitLabel(m),next=machineNextService(m),cur=m.currentMeter!==''?fmt(m.currentMeter)+' '+unit:'–';let service='kein Intervall';if(next!==null){const current=Number(m.currentMeter);const rest=Number.isFinite(current)?next-current:null;service=`nächste Wartung ${fmt(next)} ${unit}`+(rest!==null?` · ${rest>=0?'noch '+fmt(rest):fmt(Math.abs(rest))+' überfällig'} ${unit}`:'')}return `<div class="card click${invalidClass('machine',m.id,true)}" onclick="machineDetail('${m.id}')"><span class="badge ${m.status==='grün'?'green':m.status==='rot'?'red':'yellow'}">${m.status||'–'}</span><h3>${escHtml(m.name||'–')}</h3><div class="small">${escHtml(m.type||'–')}</div>${validationHint('machine',m.id)}<p><b>${cur}</b><br><span class="small">${service}${m.dueDate?` · Termin ${m.dueDate}`:''}</span></p>${m.note?`<p>${escHtml(m.note)}</p>`:''}</div>`}).join('')||'<div class="note">Noch keine Maschinen angelegt.</div>'
 }
+function machineTodoHtml(m,id){
+ m.todoRepairs=Array.isArray(m.todoRepairs)?m.todoRepairs:[];
+ if(!m.todoRepairs.length)return '<div class="note">Keine offenen oder erledigten Aufgaben gespeichert.</div>';
+ return m.todoRepairs.slice().sort((a,b)=>(a.done===b.done?String(a.dueDate||'9999').localeCompare(String(b.dueDate||'9999')):a.done?1:-1)).map(t=>'<div class="note" style="margin:6px 0;display:flex;gap:8px;align-items:center;justify-content:space-between"><div style="flex:1"><b>'+(t.done?'✓ ':'')+escHtml(t.text||'Aufgabe')+'</b>'+(t.dueDate?'<div class="small">Fällig: '+escHtml(t.dueDate)+'</div>':'')+(t.doneDate?'<div class="small">Erledigt: '+escHtml(t.doneDate)+'</div>':'')+'</div><div style="display:flex;gap:5px;flex-wrap:wrap"><button class="secondary" onclick="toggleMachineTodo(\''+id+'\',\''+t.id+'\')">'+(t.done?'Wieder öffnen':'Erledigt')+'</button><button class="dangerbtn" onclick="deleteMachineTodo(\''+id+'\',\''+t.id+'\')">Löschen</button></div></div>').join('')
+}
+function addMachineTodo(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;const text=$('mdTodoText')?.value.trim();if(!text)return alert('Bitte die Aufgabe eingeben.');m.todoRepairs=Array.isArray(m.todoRepairs)?m.todoRepairs:[];m.todoRepairs.push({id:uid('mt'),text:text,dueDate:$('mdTodoDate')?.value||'',done:false,createdDate:today()});persist('Maschinenaufgabe hinzugefügt');closeModal();setTimeout(()=>machineDetail(id),50)}
+function toggleMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id),t=m?.todoRepairs?.find(x=>x.id===taskId);if(!t)return;t.done=!t.done;t.doneDate=t.done?today():'';persist(t.done?'Maschinenaufgabe erledigt':'Maschinenaufgabe wieder geöffnet');closeModal();setTimeout(()=>machineDetail(id),50)}
+function deleteMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Diese Aufgabe wirklich löschen?'))return;m.todoRepairs=(m.todoRepairs||[]).filter(x=>x.id!==taskId);persist('Maschinenaufgabe gelöscht');closeModal();setTimeout(()=>machineDetail(id),50)}
 function machineDetail(id){
  const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;const unit=machineUnitLabel(m),next=machineNextService(m);
  const logs=[...(m.maintenance||[]).map(x=>({...x,kind:'Wartung'})),...(m.repairs||[]).map(x=>({...x,kind:'Reparatur / Hinweis'}))].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
@@ -1721,6 +1729,8 @@ function machineDetail(id){
  <div class="form3"><div><label>Status</label><select id="mdStatus"><option ${m.status==='grün'?'selected':''}>grün</option><option ${m.status==='gelb'?'selected':''}>gelb</option><option ${m.status==='rot'?'selected':''}>rot</option></select></div><div><label>Maschinentyp</label><input id="mdType" value="${escHtml(m.type||'')}"></div><div><label>Notiz / aktueller Hinweis</label><input id="mdNote" value="${escHtml(m.note||'')}"></div></div>
  <h3>Wartung</h3><div class="form3"><div><label>Zählerart</label><select id="mdMeterUnit" onchange="machineMeterFormChanged()"><option value="h" ${m.meterUnit==='h'?'selected':''}>Betriebsstunden</option><option value="km" ${m.meterUnit==='km'?'selected':''}>Kilometer</option><option value="none" ${m.meterUnit==='none'?'selected':''}>ohne Zähler</option></select></div><div><label>Aktueller Zählerstand</label><input id="mdCurrentMeter" type="number" step="0.1" min="0" value="${m.currentMeter??''}"></div><div><label>Wartungsintervall</label><input id="mdServiceInterval" type="number" step="0.1" min="0" value="${m.serviceInterval??''}" placeholder="z. B. 500"></div><div><label>Letzte Wartung bei</label><input id="mdLastServiceMeter" type="number" step="0.1" min="0" value="${m.lastServiceMeter??''}"></div><div><label>Termin / Prüfung am</label><input id="mdDueDate" type="date" value="${m.dueDate||''}"></div><div><label>&nbsp;</label><button class="secondary" onclick="completeMachineService('${id}')">Wartung jetzt erledigt</button></div></div>
  <label>Technische Daten</label><textarea id="mdTech">${escHtml(m.technical||'')}</textarea><h3>Bild</h3>${m.photo?`<img class="pic" src="${m.photo}" alt="Maschinenbild" style="max-width:420px;height:auto"><br><button class="secondary" onclick="removeMachinePhoto('${id}')">Bild entfernen</button>`:'<div class="note">Noch kein Maschinenbild hinterlegt.</div>'}<label>Bild auswählen</label><input id="mdPhoto" type="file" accept="image/*" onchange="previewMachinePhoto(this)">
+ <h3>Zu erledigende Arbeiten</h3><div class="note">Hier kannst du offene Arbeiten wie Klingen wechseln oder Schrauben nachziehen sammeln und später als erledigt markieren.</div>${machineTodoHtml(m,id)}
+ <div class="form3"><div><label>Neue Aufgabe</label><input id="mdTodoText" placeholder="z. B. Klingen wechseln"></div><div><label>Fällig am (optional)</label><input id="mdTodoDate" type="date"></div><div><label>&nbsp;</label><button class="secondary" onclick="addMachineTodo('${id}')">+ Aufgabe hinzufügen</button></div></div>
  <h3>Reparatur / Eintrag hinzufügen</h3><div class="form3"><div><label>Datum</label><input id="mdRepairDate" type="date" value="${today()}"></div><div><label>Beschreibung</label><input id="mdRepair" placeholder="z. B. Ölfilter gewechselt"></div><div><label>Kosten € (optional)</label><input id="mdRepairCost" type="number" step="0.01" min="0"></div></div>
  <button class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
  <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · ${r.kind}</b>${r.meter!==undefined&&r.meter!==''?` · ${fmt(r.meter)} ${unit}`:''}${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Einträge.</div>'}`)
