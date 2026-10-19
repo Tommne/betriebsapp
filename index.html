@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.25</title>
+<title>BetriebsApp – Version 1.0.26</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -84,7 +84,7 @@ body.modal-open .modal{touch-action:auto}
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.25</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.26</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.25';
+window.APP_VERSION = '1.0.26';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -906,7 +906,7 @@ function splitField(id){
  openModal('Feld teilen',`<div class="note"><b>${escHtml(f.name||'Feld')}</b> · ${fmt(total)} ha<br><span class="small">Gib die Fläche an, die als neues eigenes Feld abgetrennt werden soll. Die Restfläche wird automatisch berechnet. Die bestehende Feldgrenze bleibt beim ursprünglichen Feld.</span></div><div class="form2"><div><label>Name der neuen Teilfläche</label><input id="sfName" value="${escHtml((f.name||'Feld')+' Teilfläche')}"></div><div><label>Abzutrennende Fläche (ha)</label><input id="sfArea" type="number" step=".01" min=".01" oninput="updateSplitPreview('${id}')"></div></div><div id="sfPreview" class="note" style="margin-top:10px">Bitte Teilfläche eingeben.</div><br><button class="primary" onclick="saveFieldSplit('${id}')">Feld teilen</button> <button class="secondary" onclick="fieldDetail('${id}')">Abbrechen</button>`);
 }
 function updateSplitPreview(id){const f=field(id),part=num(($('sfArea')?.value||'').replace(',','.')),rest=num(f?.area)-part,el=$('sfPreview');if(!el)return;if(!(part>0))return el.textContent='Bitte eine gültige Teilfläche eingeben.';el.innerHTML=rest>0?`Neue Teilfläche: <b>${fmt(part)} ha</b> · Restfläche: <b>${fmt(rest)} ha</b>`:'<span class="red"><b>Die Teilfläche muss kleiner als die Gesamtfläche sein.</b></span>'}
-function saveFieldSplit(id){const f=field(id);if(!f)return;const name=($('sfName')?.value||'').trim(),part=Number((($('sfArea')?.value||'')+'').replace(',','.')),rest=num(f.area)-part;if(!name)return alert('Bitte einen Namen für die neue Teilfläche eingeben.');if(!(part>0&&rest>0))return alert('Bitte eine gültige Teilfläche eingeben.');const copy=deep(f);copy.id=uid('f');copy.name=name;copy.area=Math.round(part*10000)/10000;delete copy.geometry;copy.source=copy.source?deep(copy.source):{};copy.source.parentFieldId=id;copy.source.splitFrom=f.name||'';copy.source.splitArea=copy.area;copy.history=deep(f.history||[]);f.area=Math.round(rest*10000)/10000;db.fields.push(copy);persist('Feld geteilt');closeModal();renderAll();fieldDetail(copy.id)}
+function saveFieldSplit(id){const f=field(id);if(!f)return;const name=($('sfName')?.value||'').trim(),part=Number((($('sfArea')?.value||'')+'').replace(',','.')),rest=num(f.area)-part;if(!name)return alert('Bitte einen Namen für die neue Teilfläche eingeben.');if(!(part>0&&rest>0))return alert('Bitte eine gültige Teilfläche eingeben.');const copy=deep(f);copy.id=uid('f');copy.name=name;copy.area=Math.round(part*10000)/10000;delete copy.geometry;copy.source=copy.source?deep(copy.source):{};copy.source.parentFieldId=id;copy.source.splitFrom=f.name||'';copy.source.splitArea=copy.area;copy.source.splitDate=today();copy.history=deep(f.history||[]);f.area=Math.round(rest*10000)/10000;db.fields.push(copy);persist('Feld geteilt');closeModal();renderAll();fieldDetail(copy.id)}
 function fieldLinks(id){
  const works=(db.workOperations||[]).filter(w=>(w.fieldIds||[]).includes(id));
  const trials=(db.trials||[]).filter(x=>x.fieldId===id);
@@ -1129,10 +1129,16 @@ function plannedCropForFieldYear(fid,year){const p=(db.rotationPlans||[]).find(x
 function plannedRateForFieldYear(fid,year){const p=(db.rotationPlans||[]).find(x=>x.fieldId===fid&&Number(x.year)===Number(year));return p?.seedRate??''}
 function sowingTargetYear(fid,workDate,excludeWorkId=''){
  const workYear=Number(String(workDate||'').slice(0,4))||Number(db.meta.activeYear)||new Date().getFullYear();
- // Die erste Saat eines Kulturjahres bleibt beim aktuellen Jahr. Erst wenn das Feld
- // in diesem Jahr bereits VOR dieser Saat gedroschen wurde, gehört die neue Saat
- // zur Folgekultur des nächsten Jahres (z. B. Wintergetreide im Herbst).
- const harvestedBefore=(db.workOperations||[]).some(w=>w.id!==excludeWorkId&&w.type==='Dreschen'&&(w.fieldIds||[]).includes(fid)&&w.date&&Number(String(w.date).slice(0,4))===workYear&&String(w.date)<String(workDate));
+ // Bei einer nach der Ernte abgetrennten Teilfläche zählt die frühere Ernte
+ // des Ursprungsfeldes ebenfalls. Bei neueren Teilungen begrenzt splitDate
+ // diese Übernahme, damit spätere Arbeiten am Restfeld nicht falsch zugeordnet werden.
+ const f=field(fid),parentId=f?.source?.parentFieldId,splitDate=f?.source?.splitDate||'';
+ const harvestedBefore=(db.workOperations||[]).some(w=>{
+  if(w.id===excludeWorkId||w.type!=='Dreschen'||!w.date||Number(String(w.date).slice(0,4))!==workYear||String(w.date)>=String(workDate))return false;
+  if((w.fieldIds||[]).includes(fid))return true;
+  if(!parentId||!(w.fieldIds||[]).includes(parentId))return false;
+  return !splitDate||String(w.date)<String(splitDate);
+ });
  return harvestedBefore?workYear+1:workYear;
 }
 function rotationPlanForSowing(fid,workDate,excludeWorkId=''){
