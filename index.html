@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.26</title>
+<title>BetriebsApp – Version 1.0.27</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -78,13 +78,13 @@ body.modal-open .modal{touch-action:auto}
 <body>
 <div id="accessGate" class="access-gate"><div class="access-card"><h1>🌱 BetriebsApp</h1><div id="accessGateBody"></div></div></div>
 <div class="topbar">
-  <div class="brand">🌱 Mein Betrieb</div>
+  <div class="brand">🌱 Betrieb</div>
   <div class="search">
     <input id="globalSearch" placeholder="Feld, Ohrmarke, Sorte, Maschine …" oninput="doSearch(this.value)" autocomplete="off">
     <div id="searchBox" class="searchbox"></div>
   </div>
   <div class="topspacer"></div>
-  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.26</div>
+  <span id="syncIndicator" class="badge green">Lokal gespeichert</span><button id="topSyncButton" class="secondary" style="padding:7px 10px;white-space:nowrap" onclick="topManualSync()">↻ Synchronisieren</button><div class="small desktopHint">Version 1.0.27</div>
 </div>
 <div class="app">
   <aside id="nav" class="sidebar"></aside>
@@ -409,11 +409,11 @@ window.CloudBackend = (() => {
 
   async function createFarm(name){
     const {data}=await request('/rest/v1/rpc/create_farm_for_current_user',{
-      method:'POST',body:JSON.stringify({p_name:name||'Mein Betrieb'})
+      method:'POST',body:JSON.stringify({p_name:name||'Betrieb'})
     });
     // RPC returns uuid.
     const id=typeof data==='string'?data:(data?.id||data);
-    farm={id,name:name||'Mein Betrieb',role:'owner'};
+    farm={id,name:name||'Betrieb',role:'owner'};
     await LocalDB.set(FARM_KEY,farm);
     return farm;
   }
@@ -644,7 +644,7 @@ const demoAnimals=()=>{
 const defaults={
  meta:{schema:3,appVersion:'Version 1.0.7',activeYear:2026,createdAt:new Date().toISOString()},
  settings:{
-  farmName:'Mein Betrieb',stockCutoff:'12-31',warningDays:5,siloTonnesPerM3:.65,manureIncorpHours:4,slurryIncorpHours:4,
+  farmName:'Betrieb',stockCutoff:'12-31',warningDays:5,siloTonnesPerM3:.65,manureIncorpHours:4,slurryIncorpHours:4,
   seedRates:{Hafer:160,Gerste:150,Weizen:180,Roggen:170,Luzerne:22,Ackerbohne:220,Erbse:200},
   baleWeights:{Heu:350,Stroh:250,'Silage Ballen':750},
   workTypes:['Pflügen','Grubbern','Säen','Begrünung säen','Düngen','Mist streuen','Gülle fahren','Mähen','Zetten','Schwaden','Rundballen pressen','Dreschen','Mulchen'],
@@ -1061,7 +1061,7 @@ function organicDetail(workId,fid){const w=(db.workOperations||[]).find(x=>x.id=
 function saveOrganicIncorp(workId,fid){const w=(db.workOperations||[]).find(x=>x.id===workId),o=w?.details?.organic?.find(x=>x.fieldId===fid);if(!o)return;o.incorpRequired=$('oiReq').value==='1';o.deadlineHours=num($('oiHours').value);o.incorpDate=$('oiDate').value;o.incorpStart=$('oiStart').value;o.incorpMachine=$('oiMachine').value.trim();o.incorpNote=$('oiNote').value.trim();persist('Einarbeitung dokumentiert');closeModal()}
 function organicRows(type){return (db.workOperations||[]).filter(w=>w.type===type).flatMap(w=>(w.details?.organic||[]).map(o=>({w,o}))).sort((a,b)=>(b.w.date||'').localeCompare(a.w.date||''))}
 function renderOrganicInfo(type,target){const isMist=type==='Mist streuen',rows=organicRows(type);$(target).innerHTML=`<div class="toolbar"><span class="small">Ausbringung wird automatisch aus den Arbeitsgängen übernommen. Einarbeitung wird hier manuell dokumentiert.</span><button class="secondary" onclick="printOrganic('${type}')">Drucken / PDF</button></div><div style="overflow:auto"><table><tr><th>Datum</th><th>Feld</th><th>Kultur</th><th>Beginn</th><th>Ende</th><th>${isMist?'Fuhren':'m³'}</th><th>Frist</th><th>Spätester Beginn</th><th>Einarbeitung</th><th>Maschine</th><th>Status</th></tr>${rows.map(({w,o})=>{const hrs=Number(o.deadlineHours??(isMist?db.settings.manureIncorpHours:db.settings.slurryIncorpHours)),due=addHoursToDateTime(w.date,o.endTime,hrs),st=organicStatus(w,{...o,deadlineHours:hrs});return `<tr class="rowclick" onclick="organicDetail('${w.id}','${o.fieldId}')" style="${st.bad?'background:#fff1f0':''}"><td>${escHtml(w.date)}</td><td><b>${escHtml(field(o.fieldId)?.name||'–')}</b></td><td>${escHtml(o.crop||'–')}</td><td>${escHtml(o.startTime||'–')}</td><td>${escHtml(o.endTime||'–')}</td><td>${isMist?fmt(o.amount,0):fmt(o.amount,1)}</td><td>${fmt(hrs,1)} h</td><td>${due?due.toLocaleString('de-AT',{dateStyle:'short',timeStyle:'short'}):'–'}</td><td>${o.incorpRequired===false?'nicht erforderlich':escHtml((o.incorpDate||'')+(o.incorpStart?' '+o.incorpStart:''))||'–'}</td><td>${escHtml(o.incorpMachine||'–')}</td><td class="${st.bad?'red':''}"><b>${st.text}</b></td></tr>`}).join('')}</table></div>`}
-function printOrganic(type){const isMist=type==='Mist streuen',rows=organicRows(type),name=isMist?'Mistaufzeichnungen':'Gülleaufzeichnungen';const html=`<!doctype html><html><head><meta charset="utf-8"><title>${name}</title><style>body{font-family:Arial,sans-serif;padding:18px;color:#222}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #bbb;padding:5px;text-align:left}th{background:#eee}.bad{background:#ffd9d6;font-weight:bold}@media print{body{padding:0}}</style></head><body><h2>${escHtml(db.settings.farmName||'Mein Betrieb')} – ${name}</h2><p>Jahr ${db.meta.activeYear}</p><table><tr><th>Datum</th><th>Feld</th><th>Kultur</th><th>Ausbringung</th><th>Menge</th><th>Frist</th><th>Spätester Beginn</th><th>Einarbeitung</th><th>Maschine</th><th>Bemerkung</th><th>Status</th></tr>${rows.map(({w,o})=>{const hrs=Number(o.deadlineHours??(isMist?db.settings.manureIncorpHours:db.settings.slurryIncorpHours)),due=addHoursToDateTime(w.date,o.endTime,hrs),st=organicStatus(w,{...o,deadlineHours:hrs});return `<tr class="${st.bad?'bad':''}"><td>${escHtml(w.date)}</td><td>${escHtml(field(o.fieldId)?.name||'–')}</td><td>${escHtml(o.crop||'–')}</td><td>${escHtml(o.startTime||'–')}–${escHtml(o.endTime||'–')}</td><td>${isMist?fmt(o.amount,0)+' Fuhren':fmt(o.amount,1)+' m³'}</td><td>${fmt(hrs,1)} h</td><td>${due?due.toLocaleString('de-AT',{dateStyle:'short',timeStyle:'short'}):'–'}</td><td>${o.incorpRequired===false?'nicht erforderlich':escHtml((o.incorpDate||'')+(o.incorpStart?' '+o.incorpStart:''))||'–'}</td><td>${escHtml(o.incorpMachine||'–')}</td><td>${escHtml(o.incorpNote||'')}</td><td>${st.text}</td></tr>`}).join('')}</table><script>window.onload=()=>window.print()<\/script></body></html>`;const win=window.open('','_blank');win.document.write(html);win.document.close()}
+function printOrganic(type){const isMist=type==='Mist streuen',rows=organicRows(type),name=isMist?'Mistaufzeichnungen':'Gülleaufzeichnungen';const html=`<!doctype html><html><head><meta charset="utf-8"><title>${name}</title><style>body{font-family:Arial,sans-serif;padding:18px;color:#222}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #bbb;padding:5px;text-align:left}th{background:#eee}.bad{background:#ffd9d6;font-weight:bold}@media print{body{padding:0}}</style></head><body><h2>${isMist?'Mist':'Gülle'}</h2><p>Jahr ${db.meta.activeYear}</p><table><tr><th>Datum</th><th>Feld</th><th>Kultur</th><th>Ausbringung</th><th>Menge</th><th>Frist</th><th>Spätester Beginn</th><th>Einarbeitung</th><th>Maschine</th><th>Bemerkung</th><th>Status</th></tr>${rows.map(({w,o})=>{const hrs=Number(o.deadlineHours??(isMist?db.settings.manureIncorpHours:db.settings.slurryIncorpHours)),due=addHoursToDateTime(w.date,o.endTime,hrs),st=organicStatus(w,{...o,deadlineHours:hrs});return `<tr class="${st.bad?'bad':''}"><td>${escHtml(w.date)}</td><td>${escHtml(field(o.fieldId)?.name||'–')}</td><td>${escHtml(o.crop||'–')}</td><td>${escHtml(o.startTime||'–')}–${escHtml(o.endTime||'–')}</td><td>${isMist?fmt(o.amount,0)+' Fuhren':fmt(o.amount,1)+' m³'}</td><td>${fmt(hrs,1)} h</td><td>${due?due.toLocaleString('de-AT',{dateStyle:'short',timeStyle:'short'}):'–'}</td><td>${o.incorpRequired===false?'nicht erforderlich':escHtml((o.incorpDate||'')+(o.incorpStart?' '+o.incorpStart:''))||'–'}</td><td>${escHtml(o.incorpMachine||'–')}</td><td>${escHtml(o.incorpNote||'')}</td><td>${st.text}</td></tr>`}).join('')}</table><script>window.onload=()=>window.print()<\/script></body></html>`;const win=window.open('','_blank');win.document.write(html);win.document.close()}
 
 function activeTrialsForFields(fieldIds){const ids=new Set(fieldIds||[]);return (db.trials||[]).filter(t=>ids.has(t.fieldId)&&String(t.status||'aktiv')==='aktiv')}
 function trialEndKind(workType){return ['Pflügen','Grubbern'].includes(workType)?'abgebrochen':'abgeschlossen'}
@@ -1567,7 +1567,7 @@ function printAnimalLists(onlyCat=''){
  const date=new Date().toLocaleDateString('de-AT');
  const sections=cats.map(cat=>{const list=activeAnimals(cat).slice().sort((a,b)=>String(a.ear||'').localeCompare(String(b.ear||''),'de'));const rows=list.map(a=>`<tr><td>${escHtml(a.ear||'–')}</td><td>${escHtml(a.name||'–')}</td><td>${escHtml(String(a.birthYear||'–'))}</td><td>${escHtml(cat==='Böcke'?(a.location||'–'):(a.status||'–'))}</td></tr>`).join('');return `<section><h2>${escHtml(cat)} <span>(${list.length} Tiere)</span></h2><table><thead><tr><th>Ohrmarke</th><th>Name</th><th>Geburtsjahr</th><th>${cat==='Böcke'?'Aufenthalt':'Status'}</th></tr></thead><tbody>${rows||'<tr><td colspan="4">Keine aktiven Tiere in dieser Kategorie.</td></tr>'}</tbody></table></section>`}).join('');
  const w=window.open('','_blank');if(!w)return alert('Druckfenster wurde vom Browser blockiert. Bitte Pop-ups für diese Datei erlauben.');
- w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Tierlisten</title><style>@page{size:A4 portrait;margin:12mm}body{font-family:Arial,sans-serif;color:#111;font-size:10pt}h1{margin:0 0 2mm}p{margin:0 0 6mm;color:#555}h2{font-size:14pt;margin:6mm 0 2mm}h2 span{font-size:10pt;font-weight:normal;color:#555}table{width:100%;border-collapse:collapse;margin-bottom:6mm}th,td{border:1px solid #999;padding:5px 7px;text-align:left}th{background:#eee}section{break-inside:avoid}</style></head><body><h1>Tierlisten – ${escHtml(db.settings.farmName||'Mein Betrieb')}</h1><p>Stand: ${date}${onlyCat?' · '+escHtml(onlyCat):' · alle drei Tierkategorien'}</p>${sections}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()
+ w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Tierlisten</title><style>@page{size:A4 portrait;margin:12mm}body{font-family:Arial,sans-serif;color:#111;font-size:10pt}h1{margin:0 0 2mm}p{margin:0 0 6mm;color:#555}h2{font-size:14pt;margin:6mm 0 2mm}h2 span{font-size:10pt;font-weight:normal;color:#555}table{width:100%;border-collapse:collapse;margin-bottom:6mm}th,td{border:1px solid #999;padding:5px 7px;text-align:left}th{background:#eee}section{break-inside:avoid}</style></head><body><h1>Tierlisten – ${escHtml(db.settings.farmName||'Betrieb')}</h1><p>Stand: ${date}${onlyCat?' · '+escHtml(onlyCat):' · alle drei Tierkategorien'}</p>${sections}<script>window.onload=()=>window.print()<\/script></body></html>`);w.document.close()
 }
 function animalDetail(id){const a=animal(id);openModal(a.name||a.ear||'Tier',`${validationHint('animal',a.id)}<div class="grid3"><div class="card"><div class="small">Ohrmarke</div><div class="metric">${a.ear}</div></div><div class="card"><div class="small">Kategorie</div><div class="metric">${a.category}</div></div><div class="card"><div class="small">Status</div><div class="metric">${a.status}</div></div></div><div class="form2"><div><label>Name</label><input id="adName" value="${a.name||''}"></div><div><label>Aufenthaltsort</label><input id="adLoc" value="${a.location||''}"></div></div><button class="primary" onclick="saveAnimalDetail('${id}')">Speichern</button>${a.category==='Nachzucht'?` <button class="secondary" onclick="moveToMilkGoats('${id}')">Zu Milchziegen übernehmen</button>`:''}${a.status==='aktiv'?` <button class="dangerbtn" onclick="animalExit('${id}')">Tier abgeben</button>`:''}${a.status!=='aktiv'&&a.exitReason?`<div class="note" style="margin-top:10px"><b>Abgang:</b> ${a.exitReason} · ${a.exitDate||'–'}</div><div style="margin-top:10px"><button class="dangerbtn" onclick="deleteAnimalExitCompletely('${id}')">Abgang komplett löschen</button></div>`:''}`)}
 
@@ -1851,7 +1851,7 @@ async function cloudSignup(){
 async function cloudFarmChooser(){
  try{
    const farms=await CloudBackend.listFarms();
-   openModal('Betrieb auswählen',`${farms.length?'<h3>Meine Betriebe</h3>'+farms.map(x=>{const f=x.farms||{};const selected=CloudBackend.status().farm?.id===x.farm_id;return `<div class="card click" style="margin:6px 0;${selected?'border:2px solid currentColor':''}" onclick="chooseCloudFarm('${x.farm_id}','${(f.name||'Mein Betrieb').replace(/'/g,"&#39;")}','${x.role}')"><b>${f.name||'Mein Betrieb'}</b>${selected?' <b>✓ aktuell gewählt</b>':''}<div class="small">Farm-ID: <b>${x.farm_id}</b><br>Rolle: ${x.role}</div></div>`}).join(''):'<div class="note">Für dieses Konto ist noch kein Betrieb angelegt.</div>'}<h3>Neuen Betrieb anlegen</h3><label>Name</label><input id="newFarmName" value="${db.settings.farmName||'Mein Betrieb'}"><button class="primary" style="margin-top:8px" onclick="createCloudFarm()">Betrieb anlegen</button><div class="line"></div><button class="secondary" onclick="cloudChangePassword()">Passwort ändern</button> <button class="secondary" onclick="cloudLogout()">Abmelden</button>`);
+   openModal('Betrieb auswählen',`${farms.length?'<h3>Meine Betriebe</h3>'+farms.map(x=>{const f=x.farms||{};const selected=CloudBackend.status().farm?.id===x.farm_id;return `<div class="card click" style="margin:6px 0;${selected?'border:2px solid currentColor':''}" onclick="chooseCloudFarm('${x.farm_id}','${(f.name||'Betrieb').replace(/'/g,"&#39;")}','${x.role}')"><b>${f.name||'Betrieb'}</b>${selected?' <b>✓ aktuell gewählt</b>':''}<div class="small">Farm-ID: <b>${x.farm_id}</b><br>Rolle: ${x.role}</div></div>`}).join(''):'<div class="note">Für dieses Konto ist noch kein Betrieb angelegt.</div>'}<h3>Neuen Betrieb anlegen</h3><label>Name</label><input id="newFarmName" value="${db.settings.farmName||'Betrieb'}"><button class="primary" style="margin-top:8px" onclick="createCloudFarm()">Betrieb anlegen</button><div class="line"></div><button class="secondary" onclick="cloudChangePassword()">Passwort ändern</button> <button class="secondary" onclick="cloudLogout()">Abmelden</button>`);
  }catch(e){
    const msg=String(e.message||'');
    if(/jwt|expired|token/i.test(msg)){
@@ -1910,7 +1910,7 @@ async function cloudDiagnosis(){
   const memberships=await CloudBackend.listFarms();
   const remote=st.farm?await CloudBackend.remoteState():null;
   const mask=v=>{v=String(v||'');return v.length>12?v.slice(0,8)+'…'+v.slice(-4):v};
-  const farms=memberships.map(x=>{const f=x.farms||{};return (f.name||'Mein Betrieb')+' | Farm-ID: '+x.farm_id+' | Rolle: '+x.role}).join('\n')||'keine';
+  const farms=memberships.map(x=>{const f=x.farms||{};return (f.name||'Betrieb')+' | Farm-ID: '+x.farm_id+' | Rolle: '+x.role}).join('\n')||'keine';
   const msg='CLOUD-DIAGNOSE – Version 1.0.14\n\nProjekt: '+(st.config?.url||'–')+'\nBenutzer: '+(user?.email||'–')+'\nBenutzer-ID: '+mask(user?.id)+'\n\nAUSGEWÄHLTER BETRIEB:\n'+(st.farm?(st.farm.name+' | Farm-ID: '+st.farm.id+' | Rolle: '+st.farm.role):'keiner')+'\n\nBETRIEBE DIESES KONTOS:\n'+farms+'\n\nGELESENER CLOUD-DATENSATZ:\n'+(remote?('Farm-ID: '+remote.farm_id+' | Version: '+remote.version+' | Aktualisiert: '+(remote.updated_at||'–')):'kein Datensatz');
   alert(msg);
  }catch(e){alert('Cloud-Diagnose fehlgeschlagen: '+(e?.message||e));}
