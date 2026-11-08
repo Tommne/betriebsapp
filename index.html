@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#315f3a">
-<title>BetriebsApp – Version 1.0.27</title>
+<title>BetriebsApp – Version 1.0.28</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <style>
 :root{
@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.26';
+window.APP_VERSION = '1.0.28';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1709,15 +1709,12 @@ function ensureMachineData(m){
 function machineUnitLabel(m){return m?.meterUnit==='km'?'km':m?.meterUnit==='none'?'': 'h'}
 function machineNextService(m){ensureMachineData(m);const last=Number(m.lastServiceMeter),intv=Number(m.serviceInterval);return Number.isFinite(last)&&last>=0&&Number.isFinite(intv)&&intv>0?last+intv:null}
 function machineWarnings(){
- const out=[],now=today();(db.machines||[]).forEach(raw=>{const m=ensureMachineData(raw),next=machineNextService(m),cur=Number(m.currentMeter);
-  if(m.status&&m.status!=='grün')out.push({machine:m,level:m.status==='rot'?'red':'yellow',text:m.note||`Status ${m.status}`});
-  if(next!==null&&Number.isFinite(cur)&&cur>=next)out.push({machine:m,level:'red',text:`Wartung fällig bei ${fmt(next)} ${machineUnitLabel(m)} (aktuell ${fmt(cur)} ${machineUnitLabel(m)})`});
-  else if(next!==null&&Number.isFinite(cur)&&cur>=next-Math.max(Number(m.serviceInterval||0)*0.1,10))out.push({machine:m,level:'yellow',text:`Wartung bald fällig bei ${fmt(next)} ${machineUnitLabel(m)}`});
-  if(m.dueDate&&m.dueDate<=now)out.push({machine:m,level:'red',text:`Termin fällig: ${m.dueDate}`});
- });return out;
+ const out=[];
+ (db.machines||[]).forEach(raw=>{const m=ensureMachineData(raw);if(m.status&&m.status!=='grün')out.push({machine:m,level:m.status==='rot'?'red':'yellow',text:m.note||`Status ${m.status}`});});
+ return out;
 }
 function renderMachines(){
- $('machineGrid').innerHTML=(db.machines||[]).map(raw=>{const m=ensureMachineData(raw),unit=machineUnitLabel(m),next=machineNextService(m),cur=m.currentMeter!==''?fmt(m.currentMeter)+' '+unit:'–';let service='kein Intervall';if(next!==null){const current=Number(m.currentMeter);const rest=Number.isFinite(current)?next-current:null;service=`nächste Wartung ${fmt(next)} ${unit}`+(rest!==null?` · ${rest>=0?'noch '+fmt(rest):fmt(Math.abs(rest))+' überfällig'} ${unit}`:'')}return `<div class="card click${invalidClass('machine',m.id,true)}" onclick="machineDetail('${m.id}')"><span class="badge ${m.status==='grün'?'green':m.status==='rot'?'red':'yellow'}">${m.status||'–'}</span><h3>${escHtml(m.name||'–')}</h3><div class="small">${escHtml(m.type||'–')}</div>${validationHint('machine',m.id)}<p><b>${cur}</b><br><span class="small">${service}${m.dueDate?` · Termin ${m.dueDate}`:''}</span></p>${m.note?`<p>${escHtml(m.note)}</p>`:''}</div>`}).join('')||'<div class="note">Noch keine Maschinen angelegt.</div>'
+ $('machineGrid').innerHTML=(db.machines||[]).map(raw=>{const m=ensureMachineData(raw);const open=(m.todoRepairs||[]).filter(t=>!t.done).length;return `<div class="card click${invalidClass('machine',m.id,true)}" onclick="machineDetail('${m.id}')"><span class="badge ${m.status==='grün'?'green':m.status==='rot'?'red':'yellow'}">${m.status||'–'}</span><h3>${escHtml(m.name||'–')}</h3><div class="small">${escHtml(m.type||'–')}</div>${validationHint('machine',m.id)}<p class="small">${open} offene Aufgabe${open===1?'':'n'}</p></div>`}).join('')||'<div class="note">Noch keine Maschinen angelegt.</div>'
 }
 function machineTodoHtml(m,id){
  m.todoRepairs=Array.isArray(m.todoRepairs)?m.todoRepairs:[];
@@ -1728,33 +1725,26 @@ function addMachineTodo(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)r
 function toggleMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id),t=m?.todoRepairs?.find(x=>x.id===taskId);if(!t)return;t.done=!t.done;t.doneDate=t.done?today():'';persist(t.done?'Maschinenaufgabe erledigt':'Maschinenaufgabe wieder geöffnet');closeModal();setTimeout(()=>machineDetail(id),50)}
 function deleteMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Diese Aufgabe wirklich löschen?'))return;m.todoRepairs=(m.todoRepairs||[]).filter(x=>x.id!==taskId);persist('Maschinenaufgabe gelöscht');closeModal();setTimeout(()=>machineDetail(id),50)}
 function machineDetail(id){
- const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;const unit=machineUnitLabel(m),next=machineNextService(m);
- const logs=[...(m.maintenance||[]).map(x=>({...x,kind:'Wartung'})),...(m.repairs||[]).map(x=>({...x,kind:'Reparatur / Hinweis'}))].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+ const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;
+ m.repairs=Array.isArray(m.repairs)?m.repairs:[];
+ const logs=m.repairs.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
  openModal(m.name||'Maschine',`${validationHint('machine',m.id)}
- <div class="grid4"><div class="card"><div class="small">Status</div><div class="metric">${m.status||'–'}</div></div><div class="card"><div class="small">Aktueller Stand</div><div class="metric">${m.currentMeter!==''?fmt(m.currentMeter)+' '+unit:'–'}</div></div><div class="card"><div class="small">Nächste Wartung</div><div class="metric">${next!==null?fmt(next)+' '+unit:'–'}</div></div><div class="card"><div class="small">Nächster Termin</div><div class="metric" style="font-size:18px">${m.dueDate||'–'}</div></div></div>
- <div class="form3"><div><label>Status</label><select id="mdStatus"><option ${m.status==='grün'?'selected':''}>grün</option><option ${m.status==='gelb'?'selected':''}>gelb</option><option ${m.status==='rot'?'selected':''}>rot</option></select></div><div><label>Maschinentyp</label><input id="mdType" value="${escHtml(m.type||'')}"></div><div><label>Notiz / aktueller Hinweis</label><input id="mdNote" value="${escHtml(m.note||'')}"></div></div>
- <h3>Wartung</h3><div class="form3"><div><label>Zählerart</label><select id="mdMeterUnit" onchange="machineMeterFormChanged()"><option value="h" ${m.meterUnit==='h'?'selected':''}>Betriebsstunden</option><option value="km" ${m.meterUnit==='km'?'selected':''}>Kilometer</option><option value="none" ${m.meterUnit==='none'?'selected':''}>ohne Zähler</option></select></div><div><label>Aktueller Zählerstand</label><input id="mdCurrentMeter" type="number" step="0.1" min="0" value="${m.currentMeter??''}"></div><div><label>Wartungsintervall</label><input id="mdServiceInterval" type="number" step="0.1" min="0" value="${m.serviceInterval??''}" placeholder="z. B. 500"></div><div><label>Letzte Wartung bei</label><input id="mdLastServiceMeter" type="number" step="0.1" min="0" value="${m.lastServiceMeter??''}"></div><div><label>Termin / Prüfung am</label><input id="mdDueDate" type="date" value="${m.dueDate||''}"></div><div><label>&nbsp;</label><button class="secondary" onclick="completeMachineService('${id}')">Wartung jetzt erledigt</button></div></div>
- <label>Technische Daten</label><textarea id="mdTech">${escHtml(m.technical||'')}</textarea><h3>Bild</h3>${m.photo?`<img class="pic" src="${m.photo}" alt="Maschinenbild" style="max-width:420px;height:auto"><br><button class="secondary" onclick="removeMachinePhoto('${id}')">Bild entfernen</button>`:'<div class="note">Noch kein Maschinenbild hinterlegt.</div>'}<label>Bild auswählen</label><input id="mdPhoto" type="file" accept="image/*" onchange="previewMachinePhoto(this)">
- <h3>Zu erledigende Arbeiten</h3><div class="note">Hier kannst du offene Arbeiten wie Klingen wechseln oder Schrauben nachziehen sammeln und später als erledigt markieren.</div>${machineTodoHtml(m,id)}
+ <div class="form2"><div><label>Status</label><select id="mdStatus"><option ${m.status==='grün'?'selected':''}>grün</option><option ${m.status==='gelb'?'selected':''}>gelb</option><option ${m.status==='rot'?'selected':''}>rot</option></select></div><div><label>Maschinentyp</label><input id="mdType" value="${escHtml(m.type||'')}"></div></div>
+ <h3>Bild</h3>${m.photo?`<img class="pic" src="${m.photo}" alt="Maschinenbild" style="max-width:420px;height:auto"><br><button class="secondary" onclick="removeMachinePhoto('${id}')">Bild entfernen</button>`:'<div class="note">Noch kein Maschinenbild hinterlegt.</div>'}<label>Bild auswählen</label><input id="mdPhoto" type="file" accept="image/*" onchange="previewMachinePhoto(this)">
+ <h3>Zu erledigende Arbeiten</h3><div class="note">Hier kannst du Arbeiten sammeln und später als erledigt markieren.</div>${machineTodoHtml(m,id)}
  <div class="form3"><div><label>Neue Aufgabe</label><input id="mdTodoText" placeholder="z. B. Klingen wechseln"></div><div><label>Fällig am (optional)</label><input id="mdTodoDate" type="date"></div><div><label>&nbsp;</label><button class="secondary" onclick="addMachineTodo('${id}')">+ Aufgabe hinzufügen</button></div></div>
- <h3>Reparatur / Eintrag hinzufügen</h3><div class="form3"><div><label>Datum</label><input id="mdRepairDate" type="date" value="${today()}"></div><div><label>Beschreibung</label><input id="mdRepair" placeholder="z. B. Ölfilter gewechselt"></div><div><label>Kosten € (optional)</label><input id="mdRepairCost" type="number" step="0.01" min="0"></div></div>
+ <h3>Durchgeführte Arbeit eintragen</h3><div class="form2"><div><label>Datum</label><input id="mdRepairDate" type="date" value="${today()}"></div><div><label>Arbeit / Beschreibung</label><input id="mdRepair" placeholder="z. B. Ölfilter gewechselt"></div></div>
  <button class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
- <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · ${r.kind}</b>${r.meter!==undefined&&r.meter!==''?` · ${fmt(r.meter)} ${unit}`:''}${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Einträge.</div>'}`)
-}
-function machineMeterFormChanged(){const none=$('mdMeterUnit')?.value==='none';['mdCurrentMeter','mdServiceInterval','mdLastServiceMeter'].forEach(id=>{const e=$(id);if(e)e.disabled=none})}
-function syncMachineCalendarEvent(m){
- db.calendarEvents=db.calendarEvents||[];const sid='machine:'+m.id;let e=db.calendarEvents.find(x=>x.sourceId===sid);
- if(!m.dueDate){if(e)db.calendarEvents=db.calendarEvents.filter(x=>x!==e);return}
- if(!e){e={id:uid('cal'),sourceType:'machine',sourceId:sid,date:m.dueDate,title:'Maschine: '+m.name,note:'Termin / Prüfung'};db.calendarEvents.push(e)}else{e.date=m.dueDate;e.title='Maschine: '+m.name;e.note='Termin / Prüfung'}
+ <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · Arbeit</b>${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Arbeiten eingetragen.</div>'}`)
 }
 function previewMachinePhoto(inp){const f=inp?.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{window._machinePhotoPending=r.result};r.readAsDataURL(f)}
 function removeMachinePhoto(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Maschinenbild entfernen?'))return;m.photo='';persist('Maschinenbild entfernt');closeModal();setTimeout(()=>machineDetail(id),50)}
 function saveMachineDetail(id){
- const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;m.status=$('mdStatus').value;m.type=$('mdType').value.trim();m.note=$('mdNote').value.trim();m.technical=$('mdTech').value;m.meterUnit=$('mdMeterUnit').value;m.currentMeter=$('mdCurrentMeter').value===''?'':num($('mdCurrentMeter').value);m.serviceInterval=$('mdServiceInterval').value===''?'':num($('mdServiceInterval').value);m.lastServiceMeter=$('mdLastServiceMeter').value===''?'':num($('mdLastServiceMeter').value);m.dueDate=$('mdDueDate').value;
- const txt=$('mdRepair').value.trim();if(txt)m.repairs.unshift({date:$('mdRepairDate').value||today(),text:txt,cost:$('mdRepairCost').value===''?'':num($('mdRepairCost').value)});if(window._machinePhotoPending){m.photo=window._machinePhotoPending;window._machinePhotoPending=null}syncMachineCalendarEvent(m);persist('Maschine aktualisiert');closeModal()
-}
-function completeMachineService(id){
- const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;const raw=$('mdCurrentMeter')?.value||m.currentMeter;if(m.meterUnit!=='none'&&raw==='')return alert('Bitte zuerst den aktuellen Zählerstand eintragen.');const meter=m.meterUnit==='none'?'':num(raw);m.currentMeter=meter;m.lastServiceMeter=meter;m.maintenance.unshift({date:today(),meter,text:'Wartung durchgeführt'});persist('Wartung durchgeführt');closeModal();setTimeout(()=>machineDetail(id),50)
+ const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;
+ m.status=$('mdStatus').value;m.type=$('mdType').value.trim();
+ const txt=$('mdRepair').value.trim();if(txt){m.repairs=Array.isArray(m.repairs)?m.repairs:[];m.repairs.unshift({date:$('mdRepairDate').value||today(),text:txt});}
+ if(window._machinePhotoPending){m.photo=window._machinePhotoPending;window._machinePhotoPending=null}
+ persist('Maschine aktualisiert');closeModal()
 }
 function deleteMachine(id){
  const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;
@@ -1766,8 +1756,8 @@ function deleteMachine(id){
  db.machines=(db.machines||[]).filter(x=>x.id!==id);
  persist('Maschine gelöscht');closeModal();
 }
-function addMachine(){openModal('Maschine hinzufügen',`<div class="form3"><div><label>Name</label><input id="amName"></div><div><label>Typ</label><input id="amType"></div><div><label>Status</label><select id="amStatus"><option>grün</option><option>gelb</option><option>rot</option></select></div><div><label>Zählerart</label><select id="amMeterUnit"><option value="h">Betriebsstunden</option><option value="km">Kilometer</option><option value="none">ohne Zähler</option></select></div><div><label>Aktueller Zählerstand</label><input id="amCurrentMeter" type="number" step="0.1" min="0"></div><div><label>Wartungsintervall</label><input id="amServiceInterval" type="number" step="0.1" min="0" placeholder="z. B. 500"></div></div><label>Technische Daten</label><textarea id="amTech"></textarea><br><button class="primary" onclick="saveMachine()">Speichern</button>`) }
-function saveMachine(){const name=$('amName').value.trim(),type=$('amType').value.trim(),status=$('amStatus').value;if(!name||!type||!status)return alert('Name, Typ und Status sind notwendig.');db.machines.push({id:uid('mac'),name,type,status,technical:$('amTech').value,note:'',repairs:[],maintenance:[],meterUnit:$('amMeterUnit').value,currentMeter:$('amCurrentMeter').value===''?'':num($('amCurrentMeter').value),serviceInterval:$('amServiceInterval').value===''?'':num($('amServiceInterval').value),lastServiceMeter:'',dueDate:''});persist('Maschine angelegt');closeModal()}
+function addMachine(){openModal('Maschine hinzufügen',`<div class="form2"><div><label>Name</label><input id="amName"></div><div><label>Typ</label><input id="amType"></div><div><label>Status</label><select id="amStatus"><option>grün</option><option>gelb</option><option>rot</option></select></div></div><br><button class="primary" onclick="saveMachine()">Speichern</button>`)}
+function saveMachine(){const name=$('amName').value.trim(),type=$('amType').value.trim(),status=$('amStatus').value;if(!name||!type||!status)return alert('Name, Typ und Status sind notwendig.');db.machines.push({id:uid('mac'),name,type,status,repairs:[],todoRepairs:[],photo:''});persist('Maschine angelegt');closeModal()}
 function renderSettings(){
  $('settingsView').innerHTML=`<div class="grid2">
  <div class="card"><h3>Allgemein</h3><label>Betriebsname</label><input id="setFarm" value="${db.settings.farmName}"><label>Aktives Wirtschaftsjahr</label><input id="setYear" type="number" value="${db.meta.activeYear}"><label>Vorjahresbestand – Stichtag MM-TT</label><input id="setCut" value="${db.settings.stockCutoff}"><label>Warnung bei Futterreichweite unter Tagen</label><input id="setWarn" type="number" value="${db.settings.warningDays}"><div class="line"></div><b>Einarbeitungsfristen</b><label>Mist – Stunden nach Ende der Ausbringung</label><input id="setManureHours" type="number" min="0" step="0.5" value="${db.settings.manureIncorpHours}"><label>Gülle – Stunden nach Ende der Ausbringung</label><input id="setSlurryHours" type="number" min="0" step="0.5" value="${db.settings.slurryIncorpHours}"><div class="small">Als Vorgabewerte für neue Einträge. Im einzelnen Mist-/Gülleeintrag weiterhin änderbar.</div></div>
