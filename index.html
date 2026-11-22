@@ -572,7 +572,13 @@ window.SyncEngine = (() => {
     await refresh();
     if(!state.online) return {ok:false,reason:'offline'};
     if(!state.configured||!state.signedIn||!state.farm) return {ok:false,reason:'not_ready'};
-    const local=await LocalDB.get('appState');
+    let local=await LocalDB.get('appState');
+    // Compress older, already-saved machine photos before sending the full farm state.
+    const compressedPhotos=await compressAllMachinePhotos(local);
+    if(compressedPhotos){
+      await LocalDB.set('appState',local);
+      if(typeof db!=='undefined'){db=local;window.db=db}
+    }
     const pending=await LocalDB.pending();
     let remote;
     try{remote=await CloudBackend.remoteState()}catch(e){return {ok:false,reason:'network',error:e}}
@@ -1738,12 +1744,55 @@ function machineDetail(id){
  <button id="mdSaveMachine" class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
  <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · Arbeit</b>${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Arbeiten eingetragen.</div>'}`)
 }
+
+async function compressMachineImageData(data,maxDimension=1280,quality=0.72){
+ if(typeof data!=='string'||!data.startsWith('data:image/'))return data;
+ // Avoid unnecessary work for already-small photos.
+ if(data.length<180000)return data;
+ return await new Promise(resolve=>{
+  const img=new Image();
+  img.onload=()=>{
+   try{
+    const scale=Math.min(1,maxDimension/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
+    const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale));
+    const h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext('2d');
+    if(!ctx){resolve(data);return}
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+    const smaller=canvas.toDataURL('image/jpeg',quality);
+    resolve(smaller.length<data.length?smaller:data);
+   }catch(e){console.warn('Maschinenbild-Komprimierung fehlgeschlagen',e);resolve(data)}
+  };
+  img.onerror=()=>resolve(data);
+  img.src=data;
+ });
+}
+async function compressAllMachinePhotos(state){
+ const machines=Array.isArray(state?.machines)?state.machines:[];
+ let changed=0;
+ for(const m of machines){
+  if(typeof m?.photo==='string'&&m.photo.startsWith('data:image/')&&m.photo.length>=180000){
+   const before=m.photo.length;
+   const compressed=await compressMachineImageData(m.photo);
+   if(compressed!==m.photo){m.photo=compressed;changed++;console.info('Maschinenbild verkleinert:',m.name||m.id,Math.round(before/1024)+' KB → '+Math.round(compressed.length/1024)+' KB')}
+  }
+ }
+ return changed;
+}
+
 function previewMachinePhoto(inp){
  const f=inp?.files?.[0];window._machinePhotoPending=null;if(!f)return;
  const status=$('mdPhotoStatus'),save=$('mdSaveMachine');
- if(status)status.textContent='Bild wird geladen …';if(save)save.disabled=true;
+ if(status)status.textContent='Bild wird geladen und verkleinert …';if(save)save.disabled=true;
  const r=new FileReader();
- r.onload=()=>{window._machinePhotoPending=r.result;if(status)status.textContent='Bild bereit – bitte Speichern drücken.';if(save)save.disabled=false};
+ r.onload=async()=>{
+  try{
+   window._machinePhotoPending=await compressMachineImageData(r.result);
+   if(status)status.textContent='Bild bereit – '+Math.max(1,Math.round(window._machinePhotoPending.length/1024))+' KB. Bitte Speichern drücken.';
+  }catch(e){window._machinePhotoPending=r.result;if(status)status.textContent='Bild geladen – bitte Speichern drücken.'}
+  if(save)save.disabled=false;
+ };
  r.onerror=()=>{if(status)status.textContent='Bild konnte nicht gelesen werden. Bitte erneut auswählen.';if(save)save.disabled=false;alert('Das Bild konnte nicht gelesen werden. Bitte wähle es erneut aus.')};
  r.readAsDataURL(f);
 }
