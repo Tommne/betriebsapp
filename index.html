@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.28';
+window.APP_VERSION = '1.0.29';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1725,22 +1725,32 @@ function addMachineTodo(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)r
 function toggleMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id),t=m?.todoRepairs?.find(x=>x.id===taskId);if(!t)return;t.done=!t.done;t.doneDate=t.done?today():'';persist(t.done?'Maschinenaufgabe erledigt':'Maschinenaufgabe wieder geöffnet');closeModal();setTimeout(()=>machineDetail(id),50)}
 function deleteMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Diese Aufgabe wirklich löschen?'))return;m.todoRepairs=(m.todoRepairs||[]).filter(x=>x.id!==taskId);persist('Maschinenaufgabe gelöscht');closeModal();setTimeout(()=>machineDetail(id),50)}
 function machineDetail(id){
+ window._machinePhotoPending=null;
  const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;
  m.repairs=Array.isArray(m.repairs)?m.repairs:[];
  const logs=m.repairs.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
  openModal(m.name||'Maschine',`${validationHint('machine',m.id)}
  <div class="form2"><div><label>Status</label><select id="mdStatus"><option ${m.status==='grün'?'selected':''}>grün</option><option ${m.status==='gelb'?'selected':''}>gelb</option><option ${m.status==='rot'?'selected':''}>rot</option></select></div><div><label>Maschinentyp</label><input id="mdType" value="${escHtml(m.type||'')}"></div></div>
- <h3>Bild</h3>${m.photo?`<img class="pic" src="${m.photo}" alt="Maschinenbild" style="max-width:420px;height:auto"><br><button class="secondary" onclick="removeMachinePhoto('${id}')">Bild entfernen</button>`:'<div class="note">Noch kein Maschinenbild hinterlegt.</div>'}<label>Bild auswählen</label><input id="mdPhoto" type="file" accept="image/*" onchange="previewMachinePhoto(this)">
+ <h3>Bild</h3>${m.photo?`<img class="pic" src="${m.photo}" alt="Maschinenbild" style="max-width:420px;height:auto"><br><button class="secondary" onclick="removeMachinePhoto('${id}')">Bild entfernen</button>`:'<div class="note">Noch kein Maschinenbild hinterlegt.</div>'}<label>Bild auswählen</label><input id="mdPhoto" type="file" accept="image/*" onchange="previewMachinePhoto(this)"><div id="mdPhotoStatus" class="small"></div>
  <h3>Zu erledigende Arbeiten</h3><div class="note">Hier kannst du Arbeiten sammeln und später als erledigt markieren.</div>${machineTodoHtml(m,id)}
  <div class="form3"><div><label>Neue Aufgabe</label><input id="mdTodoText" placeholder="z. B. Klingen wechseln"></div><div><label>Fällig am (optional)</label><input id="mdTodoDate" type="date"></div><div><label>&nbsp;</label><button class="secondary" onclick="addMachineTodo('${id}')">+ Aufgabe hinzufügen</button></div></div>
  <h3>Durchgeführte Arbeit eintragen</h3><div class="form2"><div><label>Datum</label><input id="mdRepairDate" type="date" value="${today()}"></div><div><label>Arbeit / Beschreibung</label><input id="mdRepair" placeholder="z. B. Ölfilter gewechselt"></div></div>
- <button class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
+ <button id="mdSaveMachine" class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
  <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · Arbeit</b>${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Arbeiten eingetragen.</div>'}`)
 }
-function previewMachinePhoto(inp){const f=inp?.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{window._machinePhotoPending=r.result};r.readAsDataURL(f)}
+function previewMachinePhoto(inp){
+ const f=inp?.files?.[0];window._machinePhotoPending=null;if(!f)return;
+ const status=$('mdPhotoStatus'),save=$('mdSaveMachine');
+ if(status)status.textContent='Bild wird geladen …';if(save)save.disabled=true;
+ const r=new FileReader();
+ r.onload=()=>{window._machinePhotoPending=r.result;if(status)status.textContent='Bild bereit – bitte Speichern drücken.';if(save)save.disabled=false};
+ r.onerror=()=>{if(status)status.textContent='Bild konnte nicht gelesen werden. Bitte erneut auswählen.';if(save)save.disabled=false;alert('Das Bild konnte nicht gelesen werden. Bitte wähle es erneut aus.')};
+ r.readAsDataURL(f);
+}
 function removeMachinePhoto(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Maschinenbild entfernen?'))return;m.photo='';persist('Maschinenbild entfernt');closeModal();setTimeout(()=>machineDetail(id),50)}
 function saveMachineDetail(id){
  const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;
+ const photoInput=$('mdPhoto');if(photoInput?.files?.length&&!window._machinePhotoPending){alert('Das Bild wird noch geladen. Bitte kurz warten und dann erneut Speichern.');return}
  m.status=$('mdStatus').value;m.type=$('mdType').value.trim();
  const txt=$('mdRepair').value.trim();if(txt){m.repairs=Array.isArray(m.repairs)?m.repairs:[];m.repairs.unshift({date:$('mdRepairDate').value||today(),text:txt});}
  if(window._machinePhotoPending){m.photo=window._machinePhotoPending;window._machinePhotoPending=null}
