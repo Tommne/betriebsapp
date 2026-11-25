@@ -1742,7 +1742,7 @@ function machineDetail(id){
  const photos=ensureMachinePhotos(m);
  m.repairs=Array.isArray(m.repairs)?m.repairs:[];
  const logs=m.repairs.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
- const gallery=photos.length?'<div class="form3" style="grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:10px">'+photos.map((p,n)=>`<div style="min-width:0"><img src="${p}" alt="Maschinenbild ${n+1}" onclick="zoomMachinePhoto('${id}',${n})" style="width:100%;height:105px;object-fit:cover;border-radius:8px;cursor:zoom-in"><div class="small" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="secondary" onclick="shareMachinePhoto('${id}',${n})">Teilen</button><button class="dangerbtn" onclick="removeMachinePhoto('${id}',${n})">✕</button></div></div>`).join('')+'</div>':'<div class="note">Noch keine Bilder hinterlegt.</div>';
+ const gallery=photos.length?'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:10px">'+photos.map((p,n)=>`<div><img src="${p}" alt="Maschinenbild ${n+1}" onclick="zoomMachinePhoto('${id}',${n})" style="width:100%;height:105px;object-fit:cover;border-radius:8px;cursor:zoom-in"><div class="small" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="secondary" onclick="shareMachinePhoto('${id}',${n})">Teilen</button><button class="dangerbtn" onclick="removeMachinePhoto('${id}',${n})">✕</button></div></div>`).join('')+'</div>':'<div class="note">Noch keine Bilder hinterlegt.</div>';
  openModal(m.name||'Maschine',`${validationHint('machine',m.id)}
  <div class="form2"><div><label>Status</label><select id="mdStatus"><option ${m.status==='grün'?'selected':''}>grün</option><option ${m.status==='gelb'?'selected':''}>gelb</option><option ${m.status==='rot'?'selected':''}>rot</option></select></div><div><label>Maschinentyp</label><input id="mdType" value="${escHtml(m.type||'')}"></div></div>
  <h3>Bilder (${photos.length})</h3>${gallery}<label>Weitere Bilder auswählen</label><input id="mdPhoto" type="file" accept="image/*" multiple onchange="previewMachinePhoto(this)"><div id="mdPhotoStatus" class="small"></div>
@@ -1752,13 +1752,7 @@ function machineDetail(id){
  <button id="mdSaveMachine" class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
  <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · Arbeit</b>${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Arbeiten eingetragen.</div>'}`)
 }
-async function previewMachinePhoto(inp){
- const files=Array.from(inp?.files||[]);window._machinePhotoPending=[];if(!files.length)return;
- const status=$('mdPhotoStatus'),save=$('mdSaveMachine');
- if(status)status.textContent=files.length+' Bild(er) werden geladen und verkleinert …';if(save)save.disabled=true;
- try{
-  for(const f of files){
-   if(!f.type.async function compressAllMachinePhotos(state){
+async function compressAllMachinePhotos(state){
  const machines=Array.isArray(state?.machines)?state.machines:[];
  let changed=0;
  for(const m of machines){
@@ -1767,15 +1761,25 @@ async function previewMachinePhoto(inp){
   for(let i=0;i<photos.length;i++){
    if(typeof photos[i]==='string'&&photos[i].startsWith('data:image/')&&photos[i].length>=180000){
     const before=photos[i].length,compressed=await compressMachineImageData(photos[i]);
-    if(compressed!==photos[i]){photos[i]=compressed;changed++;console.info('Maschinenbild verkleinert:',m.name||m.id,Math.round(before/1024)+' KB → '+Math.round(compressed.length/1024)+' KB')}
+    if(compressed!==photos[i]){photos[i]=compressed;changed++}
    }
   }
   if(photos.length){m.photos=photos;m.photo=''}
  }
  return changed;
 }
-
-ut auswählen.')}
+async function previewMachinePhoto(inp){
+ const files=Array.from(inp?.files||[]);window._machinePhotoPending=[];if(!files.length)return;
+ const status=$('mdPhotoStatus'),save=$('mdSaveMachine');
+ if(status)status.textContent=files.length+' Bild(er) werden geladen und verkleinert …';if(save)save.disabled=true;
+ try{
+  for(const f of files){
+   if(!f.type.startsWith('image/'))continue;
+   const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(r.error);r.readAsDataURL(f)});
+   window._machinePhotoPending.push(await compressMachineImageData(data));
+  }
+  if(status)status.textContent=window._machinePhotoPending.length+' Bild(er) bereit. Bitte Speichern drücken.';
+ }catch(e){window._machinePhotoPending=[];if(status)status.textContent='Mindestens ein Bild konnte nicht gelesen werden.';alert('Ein Bild konnte nicht gelesen werden. Bitte erneut auswählen.')}
  if(save)save.disabled=false;
 }
 function zoomMachinePhoto(id,index){
