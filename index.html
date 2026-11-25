@@ -233,7 +233,7 @@ window.LocalDB = (() => {
 </script>
 <script>
 
-window.APP_VERSION = '1.0.30';
+window.APP_VERSION = '1.0.31';
 
 window.CloudBackend = (() => {
   const CONF_KEY='cloudConfig';
@@ -1730,79 +1730,81 @@ function machineTodoHtml(m,id){
 function addMachineTodo(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;const text=$('mdTodoText')?.value.trim();if(!text)return alert('Bitte die Aufgabe eingeben.');m.todoRepairs=Array.isArray(m.todoRepairs)?m.todoRepairs:[];m.todoRepairs.push({id:uid('mt'),text:text,dueDate:$('mdTodoDate')?.value||'',done:false,createdDate:today()});persist('Maschinenaufgabe hinzugefügt');closeModal();setTimeout(()=>machineDetail(id),50)}
 function toggleMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id),t=m?.todoRepairs?.find(x=>x.id===taskId);if(!t)return;t.done=!t.done;t.doneDate=t.done?today():'';persist(t.done?'Maschinenaufgabe erledigt':'Maschinenaufgabe wieder geöffnet');closeModal();setTimeout(()=>machineDetail(id),50)}
 function deleteMachineTodo(id,taskId){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Diese Aufgabe wirklich löschen?'))return;m.todoRepairs=(m.todoRepairs||[]).filter(x=>x.id!==taskId);persist('Maschinenaufgabe gelöscht');closeModal();setTimeout(()=>machineDetail(id),50)}
+function ensureMachinePhotos(m){
+ if(!Array.isArray(m.photos))m.photos=[];
+ if(typeof m.photo==='string'&&m.photo.startsWith('data:image/')&&!m.photos.includes(m.photo))m.photos.unshift(m.photo);
+ m.photo='';
+ return m.photos;
+}
 function machineDetail(id){
- window._machinePhotoPending=null;
+ window._machinePhotoPending=[];
  const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;
+ const photos=ensureMachinePhotos(m);
  m.repairs=Array.isArray(m.repairs)?m.repairs:[];
  const logs=m.repairs.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+ const gallery=photos.length?'<div class="form3" style="grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:10px">'+photos.map((p,n)=>`<div style="min-width:0"><img src="${p}" alt="Maschinenbild ${n+1}" onclick="zoomMachinePhoto('${id}',${n})" style="width:100%;height:105px;object-fit:cover;border-radius:8px;cursor:zoom-in"><div class="small" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="secondary" onclick="shareMachinePhoto('${id}',${n})">Teilen</button><button class="dangerbtn" onclick="removeMachinePhoto('${id}',${n})">✕</button></div></div>`).join('')+'</div>':'<div class="note">Noch keine Bilder hinterlegt.</div>';
  openModal(m.name||'Maschine',`${validationHint('machine',m.id)}
  <div class="form2"><div><label>Status</label><select id="mdStatus"><option ${m.status==='grün'?'selected':''}>grün</option><option ${m.status==='gelb'?'selected':''}>gelb</option><option ${m.status==='rot'?'selected':''}>rot</option></select></div><div><label>Maschinentyp</label><input id="mdType" value="${escHtml(m.type||'')}"></div></div>
- <h3>Bild</h3>${m.photo?`<img class="pic" src="${m.photo}" alt="Maschinenbild" style="max-width:420px;height:auto"><br><button class="secondary" onclick="removeMachinePhoto('${id}')">Bild entfernen</button>`:'<div class="note">Noch kein Maschinenbild hinterlegt.</div>'}<label>Bild auswählen</label><input id="mdPhoto" type="file" accept="image/*" onchange="previewMachinePhoto(this)"><div id="mdPhotoStatus" class="small"></div>
+ <h3>Bilder (${photos.length})</h3>${gallery}<label>Weitere Bilder auswählen</label><input id="mdPhoto" type="file" accept="image/*" multiple onchange="previewMachinePhoto(this)"><div id="mdPhotoStatus" class="small"></div>
  <h3>Zu erledigende Arbeiten</h3><div class="note">Hier kannst du Arbeiten sammeln und später als erledigt markieren.</div>${machineTodoHtml(m,id)}
  <div class="form3"><div><label>Neue Aufgabe</label><input id="mdTodoText" placeholder="z. B. Klingen wechseln"></div><div><label>Fällig am (optional)</label><input id="mdTodoDate" type="date"></div><div><label>&nbsp;</label><button class="secondary" onclick="addMachineTodo('${id}')">+ Aufgabe hinzufügen</button></div></div>
  <h3>Durchgeführte Arbeit eintragen</h3><div class="form2"><div><label>Datum</label><input id="mdRepairDate" type="date" value="${today()}"></div><div><label>Arbeit / Beschreibung</label><input id="mdRepair" placeholder="z. B. Ölfilter gewechselt"></div></div>
  <button id="mdSaveMachine" class="primary" onclick="saveMachineDetail('${id}')">Speichern</button> <button class="dangerbtn" onclick="deleteMachine('${id}')">Maschine löschen</button>
  <h3>Historie</h3>${logs.length?logs.map(r=>`<div class="note" style="margin:5px 0"><b>${escHtml(r.date||'–')} · Arbeit</b>${r.cost?` · ${fmt(r.cost)} €`:''}<br>${escHtml(r.text||'')}</div>`).join(''):'<div class="note">Noch keine Arbeiten eingetragen.</div>'}`)
 }
-
-async function compressMachineImageData(data,maxDimension=1280,quality=0.72){
- if(typeof data!=='string'||!data.startsWith('data:image/'))return data;
- // Avoid unnecessary work for already-small photos.
- if(data.length<180000)return data;
- return await new Promise(resolve=>{
-  const img=new Image();
-  img.onload=()=>{
-   try{
-    const scale=Math.min(1,maxDimension/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height));
-    const w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale));
-    const h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));
-    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
-    const ctx=canvas.getContext('2d');
-    if(!ctx){resolve(data);return}
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
-    const smaller=canvas.toDataURL('image/jpeg',quality);
-    resolve(smaller.length<data.length?smaller:data);
-   }catch(e){console.warn('Maschinenbild-Komprimierung fehlgeschlagen',e);resolve(data)}
-  };
-  img.onerror=()=>resolve(data);
-  img.src=data;
- });
-}
-async function compressAllMachinePhotos(state){
+async function previewMachinePhoto(inp){
+ const files=Array.from(inp?.files||[]);window._machinePhotoPending=[];if(!files.length)return;
+ const status=$('mdPhotoStatus'),save=$('mdSaveMachine');
+ if(status)status.textContent=files.length+' Bild(er) werden geladen und verkleinert …';if(save)save.disabled=true;
+ try{
+  for(const f of files){
+   if(!f.type.async function compressAllMachinePhotos(state){
  const machines=Array.isArray(state?.machines)?state.machines:[];
  let changed=0;
  for(const m of machines){
-  if(typeof m?.photo==='string'&&m.photo.startsWith('data:image/')&&m.photo.length>=180000){
-   const before=m.photo.length;
-   const compressed=await compressMachineImageData(m.photo);
-   if(compressed!==m.photo){m.photo=compressed;changed++;console.info('Maschinenbild verkleinert:',m.name||m.id,Math.round(before/1024)+' KB → '+Math.round(compressed.length/1024)+' KB')}
+  const photos=Array.isArray(m?.photos)?m.photos:[];
+  if(typeof m?.photo==='string'&&m.photo.startsWith('data:image/'))photos.unshift(m.photo);
+  for(let i=0;i<photos.length;i++){
+   if(typeof photos[i]==='string'&&photos[i].startsWith('data:image/')&&photos[i].length>=180000){
+    const before=photos[i].length,compressed=await compressMachineImageData(photos[i]);
+    if(compressed!==photos[i]){photos[i]=compressed;changed++;console.info('Maschinenbild verkleinert:',m.name||m.id,Math.round(before/1024)+' KB → '+Math.round(compressed.length/1024)+' KB')}
+   }
   }
+  if(photos.length){m.photos=photos;m.photo=''}
  }
  return changed;
 }
 
-function previewMachinePhoto(inp){
- const f=inp?.files?.[0];window._machinePhotoPending=null;if(!f)return;
- const status=$('mdPhotoStatus'),save=$('mdSaveMachine');
- if(status)status.textContent='Bild wird geladen und verkleinert …';if(save)save.disabled=true;
- const r=new FileReader();
- r.onload=async()=>{
-  try{
-   window._machinePhotoPending=await compressMachineImageData(r.result);
-   if(status)status.textContent='Bild bereit – '+Math.max(1,Math.round(window._machinePhotoPending.length/1024))+' KB. Bitte Speichern drücken.';
-  }catch(e){window._machinePhotoPending=r.result;if(status)status.textContent='Bild geladen – bitte Speichern drücken.'}
-  if(save)save.disabled=false;
- };
- r.onerror=()=>{if(status)status.textContent='Bild konnte nicht gelesen werden. Bitte erneut auswählen.';if(save)save.disabled=false;alert('Das Bild konnte nicht gelesen werden. Bitte wähle es erneut aus.')};
- r.readAsDataURL(f);
+ut auswählen.')}
+ if(save)save.disabled=false;
 }
-function removeMachinePhoto(id){const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;if(!confirm('Maschinenbild entfernen?'))return;m.photo='';persist('Maschinenbild entfernt');closeModal();setTimeout(()=>machineDetail(id),50)}
+function zoomMachinePhoto(id,index){
+ const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;const photos=ensureMachinePhotos(m),src=photos[index];if(!src)return;
+ openModal('Maschinenbild',`<img src="${src}" alt="Maschinenbild" style="display:block;max-width:100%;max-height:70vh;width:auto;height:auto;margin:auto;object-fit:contain"><div class="form2" style="margin-top:12px"><button class="secondary" onclick="shareMachinePhoto('${id}',${index})">Bild verschicken</button><button class="secondary" onclick="machineDetail('${id}')">Zurück zur Maschine</button></div>`);
+}
+async function shareMachinePhoto(id,index){
+ const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;const photos=ensureMachinePhotos(m),data=photos[index];if(!data)return;
+ try{
+  const blob=await (await fetch(data)).blob();
+  const ext=(blob.type||'image/jpeg').includes('png')?'png':(blob.type||'').includes('webp')?'webp':'jpg';
+  const file=new File([blob],(m.name||'Maschine').replace(/[^a-z0-9_-]/gi,'_')+'_Bild_'+(index+1)+'.'+ext,{type:blob.type||'image/jpeg'});
+  if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({files:[file],title:m.name||'Maschinenbild'});
+  else{
+   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+   alert('Teilen wird von diesem Browser nicht unterstützt. Das Bild wurde heruntergeladen und kann anschließend verschickt werden.');
+  }
+ }catch(e){if(e?.name!=='AbortError')alert('Bild konnte nicht geteilt werden: '+(e?.message||e))}
+}
+function removeMachinePhoto(id,index){
+ const m=(db.machines||[]).find(x=>x.id===id);if(!m)return;const photos=ensureMachinePhotos(m);
+ if(!confirm('Dieses Maschinenbild entfernen?'))return;photos.splice(index,1);persist('Maschinenbild entfernt');machineDetail(id)
+}
 function saveMachineDetail(id){
  const m=ensureMachineData((db.machines||[]).find(x=>x.id===id));if(!m)return;
- const photoInput=$('mdPhoto');if(photoInput?.files?.length&&!window._machinePhotoPending){alert('Das Bild wird noch geladen. Bitte kurz warten und dann erneut Speichern.');return}
+ const photoInput=$('mdPhoto');if(photoInput?.files?.length&&(!window._machinePhotoPending||!window._machinePhotoPending.length)){alert('Die Bilder werden noch geladen. Bitte kurz warten und dann erneut Speichern.');return}
  m.status=$('mdStatus').value;m.type=$('mdType').value.trim();
  const txt=$('mdRepair').value.trim();if(txt){m.repairs=Array.isArray(m.repairs)?m.repairs:[];m.repairs.unshift({date:$('mdRepairDate').value||today(),text:txt});}
- if(window._machinePhotoPending){m.photo=window._machinePhotoPending;window._machinePhotoPending=null}
+ const photos=ensureMachinePhotos(m);if(window._machinePhotoPending?.length)photos.push(...window._machinePhotoPending);window._machinePhotoPending=[];
  persist('Maschine aktualisiert');closeModal()
 }
 function deleteMachine(id){
